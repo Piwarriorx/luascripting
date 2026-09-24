@@ -481,7 +481,7 @@ function PiHub:MakeWindow(windowConfig)
     local floatingIconEnabled = true
 
     local function updateFloatingIconVisibility()
-        floatIcon.Visible = floatingIconEnabled and (not windowOpen)
+        floatIcon.Visible = floatingIconEnabled
     end
     updateFloatingIconVisibility()
 
