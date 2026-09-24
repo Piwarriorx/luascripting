@@ -232,13 +232,12 @@ local function computeOpenSize()
     local scale = computeUiScale()
 
     if isMobileDevice() then
-        -- Compact Mobile Sizing: takes up only ~50% - 55% of the screen
-        -- Leaves ~25% free margin on each side so the game world, HUD, and buttons are clearly visible
-        local targetRenderedW = math.clamp(math.floor(view.X * 0.54), 320, 500)
-        local targetRenderedH = math.clamp(math.floor(view.Y * 0.54), 220, 310)
+        -- Mobile Sizing: 60% width and 55% height
+        local targetRenderedW = math.clamp(math.floor(view.X * 0.60), 340, 640)
+        local targetRenderedH = math.clamp(math.floor(view.Y * 0.55), 230, 380)
 
-        targetRenderedW = math.min(targetRenderedW, view.X - 60)
-        targetRenderedH = math.min(targetRenderedH, view.Y - 70)
+        targetRenderedW = math.min(targetRenderedW, view.X - 48)
+        targetRenderedH = math.min(targetRenderedH, view.Y - 50)
 
         local width = math.floor(targetRenderedW / scale)
         local height = math.floor(targetRenderedH / scale)
@@ -508,8 +507,7 @@ function PiHub:MakeWindow(windowConfig)
         contentContainer.Position = UDim2.new(0, sidebarWidth + 8, 0, HEADER_HEIGHT + 8)
         contentContainer.Size = UDim2.new(1, -(sidebarWidth + 16), 1, -(HEADER_HEIGHT + 16))
         notifyHolder.Size = UDim2.new(0, notifyWidthFor(), 1, -24)
-        local topInset = isMobileDevice() and 10 or 0
-        mainFrame.Position = UDim2.new(0.5, 0, 0.5, topInset)
+        mainFrame.Position = UDim2.fromScale(0.5, 0.5)
         if windowOpen then
             mainFrame.Size = openSize
         end
