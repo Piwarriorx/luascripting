@@ -1748,7 +1748,6 @@ function PiHub:MakeWindow(windowConfig)
     end
 
     function WindowObj:Unload()
-        print("[PiHub] Unloading UI completely...")
         if cameraConnection then
             pcall(function()
                 cameraConnection:Disconnect()
