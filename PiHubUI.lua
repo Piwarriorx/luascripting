@@ -104,7 +104,7 @@ local LOGO_ASSET = "rbxassetid://10723407389"
 local WINDOW_SIZE = UDim2.fromOffset(530, 320)
 local CLOSED_SIZE = UDim2.fromOffset(0, 0)
 local HEADER_HEIGHT = 42
-local SIDEBAR_WIDTH = 130
+local SIDEBAR_WIDTH = 150
 local ICON_SIZE = 52
 local TAP_THRESHOLD = 6
 
@@ -193,16 +193,20 @@ end
 -- eating the content area.
 local function computeOpenSize()
     local view = viewportSize()
-    if view.X >= 900 and view.Y >= 560 then
-        return WINDOW_SIZE
+    if view.X < 850 or view.Y < 520 then
+        -- Small screens / Mobile / Narrow windowed mode: fit screen with margins
+        local width = math.clamp(math.floor(view.X * 0.92), 300, 620)
+        local height = math.clamp(math.floor(view.Y * 0.86), 240, 440)
+        return UDim2.fromOffset(width, height)
     end
-    local width = math.clamp(math.floor(view.X * 0.94), 300, WINDOW_SIZE.X.Offset)
-    local height = math.clamp(math.floor(view.Y * 0.88), 240, WINDOW_SIZE.Y.Offset)
+    -- PC / Desktop: adapt dynamically to viewport so it never appears tiny on high-res displays
+    local width = math.clamp(math.floor(view.X * 0.44), 680, 940)
+    local height = math.clamp(math.floor(view.Y * 0.54), 440, 660)
     return UDim2.fromOffset(width, height)
 end
 
 local function sidebarWidthFor(windowWidth)
-    return math.clamp(math.floor(windowWidth * 0.24), 96, SIDEBAR_WIDTH)
+    return math.clamp(math.floor(windowWidth * 0.23), 110, SIDEBAR_WIDTH)
 end
 
 local function notifyWidthFor()
@@ -221,7 +225,14 @@ local function resolveMountParent()
     if robloxGui then
         return robloxGui
     end
-    return LocalPlayer:WaitForChild("PlayerGui")
+    local player = LocalPlayer or Players.LocalPlayer
+    if not player then
+        pcall(function()
+            Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+            player = Players.LocalPlayer
+        end)
+    end
+    return (player and player:WaitForChild("PlayerGui", 15)) or CoreGui
 end
 
 local function isPress(input)
