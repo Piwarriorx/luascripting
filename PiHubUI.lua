@@ -189,60 +189,72 @@ end
 
 local manualScale = nil
 
+local function isMobileDevice()
+    local isTouch = false
+    pcall(function()
+        isTouch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+    end)
+    if isTouch then
+        return true
+    end
+    local view = viewportSize()
+    return (view.X <= 1100 or view.Y <= 650)
+end
+
 local function computeUiScale()
     if manualScale and manualScale > 0 then
         return manualScale
     end
     local view = viewportSize()
+    if isMobileDevice() then
+        if view.Y < 420 then
+            return 0.78
+        elseif view.Y < 650 then
+            return 0.84
+        else
+            return 0.90
+        end
+    end
+    -- PC / Fullscreen
     if view.Y >= 1200 or view.X >= 2200 then
         return 1.85
     elseif view.Y >= 850 or view.X >= 1500 then
-        return 1.6 -- 1080p PC fullscreen: 60% larger UI and components
+        return 1.6
     elseif view.Y >= 680 or view.X >= 1150 then
         return 1.35
-    elseif view.Y >= 500 then
-        return 1.05
-    elseif view.Y >= 400 then
-        return 0.92 -- Mobile / compact tablet
     else
-        return 0.85 -- Mobile phone landscape (shrinks to fit small screens)
+        return 1.15
     end
 end
 
 local function computeOpenSize()
     local view = viewportSize()
     local scale = computeUiScale()
-    local effX = view.X / scale
-    local effY = view.Y / scale
 
-    local isMobile = (effX < 850 or effY < 520)
+    if isMobileDevice() then
+        -- Compact Mobile Sizing: takes up only ~50% - 55% of the screen
+        -- Leaves ~25% free margin on each side so the game world, HUD, and buttons are clearly visible
+        local targetRenderedW = math.clamp(math.floor(view.X * 0.54), 320, 500)
+        local targetRenderedH = math.clamp(math.floor(view.Y * 0.54), 220, 310)
 
-    -- Guaranteed margins on all sides (in rendered screen pixels)
-    local marginX, marginTop, marginBottom
-    if isMobile then
-        marginX = math.max(16, math.floor(view.X * 0.04)) -- Left & Right margin
-        marginTop = 38 -- Top margin clearing Roblox topbar
-        marginBottom = 16 -- Bottom margin clearing mobile gestures
-    else
-        -- Desktop PC / Laptop: clean margins so menu never crowds edges
-        marginX = math.max(60, math.floor(view.X * 0.16))
-        marginTop = math.max(45, math.floor(view.Y * 0.12))
-        marginBottom = math.max(35, math.floor(view.Y * 0.10))
+        targetRenderedW = math.min(targetRenderedW, view.X - 60)
+        targetRenderedH = math.min(targetRenderedH, view.Y - 70)
+
+        local width = math.floor(targetRenderedW / scale)
+        local height = math.floor(targetRenderedH / scale)
+        return UDim2.fromOffset(width, height)
     end
+
+    -- Desktop PC / Laptop: large, clear window
+    local marginX = math.max(60, math.floor(view.X * 0.16))
+    local marginTop = math.max(45, math.floor(view.Y * 0.12))
+    local marginBottom = math.max(35, math.floor(view.Y * 0.10))
 
     local availableW = math.max(300, view.X - (marginX * 2))
     local availableH = math.max(220, view.Y - (marginTop + marginBottom))
 
-    local width = math.floor(availableW / scale)
-    local height = math.floor(availableH / scale)
-
-    if not isMobile then
-        width = math.clamp(width, 680, 1100)
-        height = math.clamp(height, 440, 720)
-    else
-        width = math.clamp(width, 280, 680)
-        height = math.clamp(height, 220, 480)
-    end
+    local width = math.clamp(math.floor(availableW / scale), 680, 1100)
+    local height = math.clamp(math.floor(availableH / scale), 440, 720)
 
     return UDim2.fromOffset(width, height)
 end
@@ -496,10 +508,7 @@ function PiHub:MakeWindow(windowConfig)
         contentContainer.Position = UDim2.new(0, sidebarWidth + 8, 0, HEADER_HEIGHT + 8)
         contentContainer.Size = UDim2.new(1, -(sidebarWidth + 16), 1, -(HEADER_HEIGHT + 16))
         notifyHolder.Size = UDim2.new(0, notifyWidthFor(), 1, -24)
-        -- Center the menu respecting safe top/bottom margins on all screen types
-        local view = viewportSize()
-        local isMobile = (view.X / mainScale.Scale < 850 or view.Y / mainScale.Scale < 520)
-        local topInset = isMobile and 11 or 0
+        local topInset = isMobileDevice() and 10 or 0
         mainFrame.Position = UDim2.new(0.5, 0, 0.5, topInset)
         if windowOpen then
             mainFrame.Size = openSize
