@@ -337,7 +337,7 @@ function PiHub:MakeWindow(windowConfig)
     local mainFrame = create("Frame", {
         Name = "MainFrame",
         AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = UDim2.new(isMobileDevice() and 0.55 or 0.5, 0, 0.5, 0),
+        Position = UDim2.new(0.5, 0, isMobileDevice() and 0.45 or 0.5, 0),
         Size = openSize,
         BackgroundColor3 = Theme.Background,
         BorderSizePixel = 0,
@@ -443,7 +443,7 @@ function PiHub:MakeWindow(windowConfig)
     local contentContainer = create("Frame", {
         Name = "ContentContainer",
         Position = UDim2.new(0, sidebarWidth + 8, 0, HEADER_HEIGHT + 8),
-        Size = UDim2.new(1, -(sidebarWidth + 16), 1, -(HEADER_HEIGHT + 16)),
+        Size = UDim2.new(1, -(sidebarWidth + 20), 1, -(HEADER_HEIGHT + 16)),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
     }, mainFrame)
@@ -505,9 +505,9 @@ function PiHub:MakeWindow(windowConfig)
         sidebarWidth = sidebarWidthFor(openSize.X.Offset)
         sidebar.Size = UDim2.new(0, sidebarWidth, 1, -HEADER_HEIGHT)
         contentContainer.Position = UDim2.new(0, sidebarWidth + 8, 0, HEADER_HEIGHT + 8)
-        contentContainer.Size = UDim2.new(1, -(sidebarWidth + 16), 1, -(HEADER_HEIGHT + 16))
+        contentContainer.Size = UDim2.new(1, -(sidebarWidth + 20), 1, -(HEADER_HEIGHT + 16))
         notifyHolder.Size = UDim2.new(0, notifyWidthFor(), 1, -24)
-        mainFrame.Position = UDim2.new(isMobileDevice() and 0.55 or 0.5, 0, 0.5, 0)
+        mainFrame.Position = UDim2.new(0.5, 0, isMobileDevice() and 0.45 or 0.5, 0)
         if windowOpen then
             mainFrame.Size = openSize
         end
@@ -770,10 +770,10 @@ function PiHub:MakeWindow(windowConfig)
             SortOrder = Enum.SortOrder.LayoutOrder,
         }, tabContent)
         create("UIPadding", {
-            PaddingTop = UDim.new(0, 2),
+            PaddingTop = UDim.new(0, 4),
             PaddingBottom = UDim.new(0, 12),
-            PaddingLeft = UDim.new(0, 2),
-            PaddingRight = UDim.new(0, 2),
+            PaddingLeft = UDim.new(0, 4),
+            PaddingRight = UDim.new(0, 10),
         }, tabContent)
 
         local tab = {
