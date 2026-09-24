@@ -194,15 +194,14 @@ local function computeUiScale()
         return manualScale
     end
     local view = viewportSize()
-    -- On PC Fullscreen (1080p, 1440p, 4K), enlarge the whole menu so text & buttons are easily readable
     if view.Y >= 1300 then
-        return 1.45
+        return 1.55
     elseif view.Y >= 950 or view.X >= 1600 then
-        return 1.28 -- 28% larger for 1080p PC fullscreen
+        return 1.4
     elseif view.Y >= 750 or view.X >= 1200 then
-        return 1.15
+        return 1.2
     elseif view.Y >= 600 then
-        return 1.05
+        return 1.08
     else
         return 1.0
     end
@@ -215,14 +214,12 @@ local function computeOpenSize()
     local effY = view.Y / scale
 
     if effX < 850 or effY < 520 then
-        -- Small screens / Mobile / Narrow windowed mode: fit screen with margins
         local width = math.clamp(math.floor(effX * 0.92), 320, 620)
         local height = math.clamp(math.floor(effY * 0.86), 240, 440)
         return UDim2.fromOffset(width, height)
     end
-    -- PC / Desktop: comfortable window dimension
-    local width = math.clamp(math.floor(effX * 0.46), 660, 880)
-    local height = math.clamp(math.floor(effY * 0.54), 420, 580)
+    local width = math.clamp(math.floor(effX * 0.52), 660, 960)
+    local height = math.clamp(math.floor(effY * 0.58), 420, 640)
     return UDim2.fromOffset(width, height)
 end
 
