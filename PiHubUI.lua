@@ -104,7 +104,7 @@ local LOGO_ASSET = "rbxassetid://10723407389"
 local WINDOW_SIZE = UDim2.fromOffset(530, 320)
 local CLOSED_SIZE = UDim2.fromOffset(0, 0)
 local HEADER_HEIGHT = 42
-local SIDEBAR_WIDTH = 150
+local SIDEBAR_WIDTH = 165
 local ICON_SIZE = 52
 local TAP_THRESHOLD = 6
 
@@ -194,16 +194,18 @@ local function computeUiScale()
         return manualScale
     end
     local view = viewportSize()
-    if view.Y >= 1300 then
-        return 1.55
-    elseif view.Y >= 950 or view.X >= 1600 then
-        return 1.4
-    elseif view.Y >= 750 or view.X >= 1200 then
-        return 1.2
-    elseif view.Y >= 600 then
-        return 1.08
+    if view.Y >= 1200 or view.X >= 2200 then
+        return 1.85
+    elseif view.Y >= 850 or view.X >= 1500 then
+        return 1.6 -- 1080p PC fullscreen: 60% larger UI and components
+    elseif view.Y >= 680 or view.X >= 1150 then
+        return 1.35
+    elseif view.Y >= 500 then
+        return 1.05
+    elseif view.Y >= 400 then
+        return 0.92 -- Mobile / compact tablet
     else
-        return 1.0
+        return 0.85 -- Mobile phone landscape (shrinks to fit small screens)
     end
 end
 
@@ -214,17 +216,17 @@ local function computeOpenSize()
     local effY = view.Y / scale
 
     if effX < 850 or effY < 520 then
-        local width = math.clamp(math.floor(effX * 0.92), 320, 620)
-        local height = math.clamp(math.floor(effY * 0.86), 240, 440)
+        local width = math.clamp(math.floor(effX * 0.94), 300, 680)
+        local height = math.clamp(math.floor(effY * 0.88), 240, 480)
         return UDim2.fromOffset(width, height)
     end
-    local width = math.clamp(math.floor(effX * 0.52), 660, 960)
-    local height = math.clamp(math.floor(effY * 0.58), 420, 640)
+    local width = math.clamp(math.floor(effX * 0.62), 680, 1100)
+    local height = math.clamp(math.floor(effY * 0.70), 450, 750)
     return UDim2.fromOffset(width, height)
 end
 
 local function sidebarWidthFor(windowWidth)
-    return math.clamp(math.floor(windowWidth * 0.23), 110, SIDEBAR_WIDTH)
+    return math.clamp(math.floor(windowWidth * 0.24), 120, SIDEBAR_WIDTH)
 end
 
 local function notifyWidthFor()
