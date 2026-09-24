@@ -187,21 +187,42 @@ local function viewportSize()
     return Vector2.new(1280, 720)
 end
 
--- Adaptive sizing: desktops keep the classic 530x320 window, while smaller
--- screens (phones, tablets, windowed mode) get a window that fits the viewport
--- with a narrow margin, and the sidebar shrinks proportionally instead of
--- eating the content area.
+local manualScale = nil
+
+local function computeUiScale()
+    if manualScale and manualScale > 0 then
+        return manualScale
+    end
+    local view = viewportSize()
+    -- On PC Fullscreen (1080p, 1440p, 4K), enlarge the whole menu so text & buttons are easily readable
+    if view.Y >= 1300 then
+        return 1.45
+    elseif view.Y >= 950 or view.X >= 1600 then
+        return 1.28 -- 28% larger for 1080p PC fullscreen
+    elseif view.Y >= 750 or view.X >= 1200 then
+        return 1.15
+    elseif view.Y >= 600 then
+        return 1.05
+    else
+        return 1.0
+    end
+end
+
 local function computeOpenSize()
     local view = viewportSize()
-    if view.X < 850 or view.Y < 520 then
+    local scale = computeUiScale()
+    local effX = view.X / scale
+    local effY = view.Y / scale
+
+    if effX < 850 or effY < 520 then
         -- Small screens / Mobile / Narrow windowed mode: fit screen with margins
-        local width = math.clamp(math.floor(view.X * 0.92), 300, 620)
-        local height = math.clamp(math.floor(view.Y * 0.86), 240, 440)
+        local width = math.clamp(math.floor(effX * 0.92), 320, 620)
+        local height = math.clamp(math.floor(effY * 0.86), 240, 440)
         return UDim2.fromOffset(width, height)
     end
-    -- PC / Desktop: adapt dynamically to viewport so it never appears tiny on high-res displays
-    local width = math.clamp(math.floor(view.X * 0.44), 680, 940)
-    local height = math.clamp(math.floor(view.Y * 0.54), 440, 660)
+    -- PC / Desktop: comfortable window dimension
+    local width = math.clamp(math.floor(effX * 0.46), 660, 880)
+    local height = math.clamp(math.floor(effY * 0.54), 420, 580)
     return UDim2.fromOffset(width, height)
 end
 
@@ -292,6 +313,10 @@ function PiHub:MakeWindow(windowConfig)
     }, windowRoot)
     addCorner(mainFrame, 12)
     addStroke(mainFrame, Theme.Border, 1.2)
+
+    local mainScale = create("UIScale", {
+        Scale = computeUiScale(),
+    }, mainFrame)
 
     local header = create("Frame", {
         Name = "Header",
@@ -437,6 +462,7 @@ function PiHub:MakeWindow(windowConfig)
     end
 
     local function applyAdaptiveSize()
+        mainScale.Scale = computeUiScale()
         openSize = computeOpenSize()
         sidebarWidth = sidebarWidthFor(openSize.X.Offset)
         sidebar.Size = UDim2.new(0, sidebarWidth, 1, -HEADER_HEIGHT)
@@ -532,6 +558,15 @@ function PiHub:MakeWindow(windowConfig)
 
     function WindowObj:IsFloatingIconVisible()
         return floatIcon.Visible
+    end
+
+    function WindowObj:SetScale(scale)
+        manualScale = tonumber(scale)
+        applyAdaptiveSize()
+    end
+
+    function WindowObj:GetScale()
+        return mainScale.Scale
     end
 
     registry:Connect(UserInputService.InputBegan, function(input, gameProcessed)
@@ -1686,6 +1721,7 @@ PiHub.Capabilities = {
     FloatingIcon = true,
     NotifyToggle = true,
     Adaptive = true,
+    Scale = true,
 }
 
 return PiHub
