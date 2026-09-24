@@ -201,6 +201,13 @@ local function isMobileDevice()
     return (view.X <= 1100 or view.Y <= 650)
 end
 
+local function iconSizeFor()
+    if isMobileDevice() then
+        return 32 -- Compact 32px floating icon on mobile
+    end
+    return 38 -- 38px on desktop PC
+end
+
 local function computeUiScale()
     if manualScale and manualScale > 0 then
         return manualScale
@@ -448,19 +455,20 @@ function PiHub:MakeWindow(windowConfig)
         BorderSizePixel = 0,
     }, mainFrame)
 
+    local initIconSize = iconSizeFor()
     local floatIcon = create("ImageButton", {
         Name = "PiHub_FloatingBtn",
         AnchorPoint = Vector2.new(0, 0),
-        Position = UDim2.new(0, 16, 0.5, -ICON_SIZE / 2),
-        Size = UDim2.fromOffset(ICON_SIZE, ICON_SIZE),
+        Position = UDim2.new(0, 16, 0.5, -initIconSize / 2),
+        Size = UDim2.fromOffset(initIconSize, initIconSize),
         BackgroundColor3 = Theme.Surface,
         BorderSizePixel = 0,
         Image = LOGO_ASSET,
         ScaleType = Enum.ScaleType.Fit,
         AutoButtonColor = false,
     }, gui)
-    addCorner(floatIcon, 22)
-    addStroke(floatIcon, Theme.Accent, 1.5)
+    local floatCorner = addCorner(floatIcon, math.floor(initIconSize / 2))
+    addStroke(floatIcon, Theme.Accent, 1.2)
 
     local notifyHolder = create("Frame", {
         Name = "NotificationHolder",
@@ -490,10 +498,11 @@ function PiHub:MakeWindow(windowConfig)
     local function clampIconToViewport()
         local view = viewportSize()
         local position = floatIcon.Position
+        local curSize = iconSizeFor()
         local absX = view.X * position.X.Scale + position.X.Offset
         local absY = view.Y * position.Y.Scale + position.Y.Offset
-        local x = math.clamp(absX, 0, math.max(0, view.X - ICON_SIZE))
-        local y = math.clamp(absY, 0, math.max(0, view.Y - ICON_SIZE))
+        local x = math.clamp(absX, 0, math.max(0, view.X - curSize))
+        local y = math.clamp(absY, 0, math.max(0, view.Y - curSize))
         if x ~= absX or y ~= absY then
             floatIcon.Position = UDim2.fromOffset(x, y)
         end
@@ -511,6 +520,11 @@ function PiHub:MakeWindow(windowConfig)
         if windowOpen then
             mainFrame.Size = openSize
         end
+
+        local curIconSize = iconSizeFor()
+        floatIcon.Size = UDim2.fromOffset(curIconSize, curIconSize)
+        floatCorner.CornerRadius = UDim.new(0, math.floor(curIconSize / 2))
+
         clampIconToViewport()
     end
 
@@ -671,8 +685,9 @@ function PiHub:MakeWindow(windowConfig)
             mainFrame.Position = UDim2.new(frameStart.X.Scale, centerX - view.X * frameStart.X.Scale, frameStart.Y.Scale, centerY - view.Y * frameStart.Y.Scale)
         elseif dragTarget == "icon" and delta.Magnitude > TAP_THRESHOLD then
             iconMoved = true
-            local x = math.clamp(view.X * iconStart.X.Scale + iconStart.X.Offset + delta.X, 0, view.X - ICON_SIZE)
-            local y = math.clamp(view.Y * iconStart.Y.Scale + iconStart.Y.Offset + delta.Y, 0, view.Y - ICON_SIZE)
+            local curSize = iconSizeFor()
+            local x = math.clamp(view.X * iconStart.X.Scale + iconStart.X.Offset + delta.X, 0, view.X - curSize)
+            local y = math.clamp(view.Y * iconStart.Y.Scale + iconStart.Y.Offset + delta.Y, 0, view.Y - curSize)
             floatIcon.Position = UDim2.new(0, x, 0, y)
         end
     end)
