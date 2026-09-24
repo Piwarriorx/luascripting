@@ -215,13 +215,35 @@ local function computeOpenSize()
     local effX = view.X / scale
     local effY = view.Y / scale
 
-    if effX < 850 or effY < 520 then
-        local width = math.clamp(math.floor(effX * 0.94), 300, 680)
-        local height = math.clamp(math.floor(effY * 0.88), 240, 480)
-        return UDim2.fromOffset(width, height)
+    local isMobile = (effX < 850 or effY < 520)
+
+    -- Guaranteed margins on all sides (in rendered screen pixels)
+    local marginX, marginTop, marginBottom
+    if isMobile then
+        marginX = math.max(16, math.floor(view.X * 0.04)) -- Left & Right margin
+        marginTop = 38 -- Top margin clearing Roblox topbar
+        marginBottom = 16 -- Bottom margin clearing mobile gestures
+    else
+        -- Desktop PC / Laptop: clean margins so menu never crowds edges
+        marginX = math.max(60, math.floor(view.X * 0.16))
+        marginTop = math.max(45, math.floor(view.Y * 0.12))
+        marginBottom = math.max(35, math.floor(view.Y * 0.10))
     end
-    local width = math.clamp(math.floor(effX * 0.62), 680, 1100)
-    local height = math.clamp(math.floor(effY * 0.70), 450, 750)
+
+    local availableW = math.max(300, view.X - (marginX * 2))
+    local availableH = math.max(220, view.Y - (marginTop + marginBottom))
+
+    local width = math.floor(availableW / scale)
+    local height = math.floor(availableH / scale)
+
+    if not isMobile then
+        width = math.clamp(width, 680, 1100)
+        height = math.clamp(height, 440, 720)
+    else
+        width = math.clamp(width, 280, 680)
+        height = math.clamp(height, 220, 480)
+    end
+
     return UDim2.fromOffset(width, height)
 end
 
@@ -474,15 +496,10 @@ function PiHub:MakeWindow(windowConfig)
         contentContainer.Position = UDim2.new(0, sidebarWidth + 8, 0, HEADER_HEIGHT + 8)
         contentContainer.Size = UDim2.new(1, -(sidebarWidth + 16), 1, -(HEADER_HEIGHT + 16))
         notifyHolder.Size = UDim2.new(0, notifyWidthFor(), 1, -24)
-        -- On small viewports (mobile landscape), push center down so the header
-        -- clears the Roblox topbar when IgnoreOnInset is active.
+        -- Center the menu respecting safe top/bottom margins on all screen types
         local view = viewportSize()
-        local topInset = 0
-        if view.Y < 520 then
-            topInset = 18
-        elseif view.Y < 700 then
-            topInset = 10
-        end
+        local isMobile = (view.X / mainScale.Scale < 850 or view.Y / mainScale.Scale < 520)
+        local topInset = isMobile and 11 or 0
         mainFrame.Position = UDim2.new(0.5, 0, 0.5, topInset)
         if windowOpen then
             mainFrame.Size = openSize
@@ -625,8 +642,25 @@ function PiHub:MakeWindow(windowConfig)
         local delta = input.Position - dragStart
         local view = viewportSize()
         if dragTarget == "window" then
-            local centerX = math.clamp(view.X * frameStart.X.Scale + frameStart.X.Offset + delta.X, 80, view.X - 80)
-            local centerY = math.clamp(view.Y * frameStart.Y.Scale + frameStart.Y.Offset + delta.Y, 50, view.Y - 50)
+            local renderedW = mainFrame.AbsoluteSize.X
+            local renderedH = mainFrame.AbsoluteSize.Y
+            local halfW = math.max(40, renderedW / 2)
+            local halfH = math.max(30, renderedH / 2)
+
+            local minMarginX = 16
+            local minMarginTop = 38
+            local minMarginBottom = 16
+
+            local minCenterX = math.min(minMarginX + halfW, view.X / 2)
+            local maxCenterX = math.max(view.X - minMarginX - halfW, view.X / 2)
+            local minCenterY = math.min(minMarginTop + halfH, view.Y / 2)
+            local maxCenterY = math.max(view.Y - minMarginBottom - halfH, view.Y / 2)
+
+            local targetX = view.X * frameStart.X.Scale + frameStart.X.Offset + delta.X
+            local targetY = view.Y * frameStart.Y.Scale + frameStart.Y.Offset + delta.Y
+
+            local centerX = math.clamp(targetX, minCenterX, maxCenterX)
+            local centerY = math.clamp(targetY, minCenterY, maxCenterY)
             mainFrame.Position = UDim2.new(frameStart.X.Scale, centerX - view.X * frameStart.X.Scale, frameStart.Y.Scale, centerY - view.Y * frameStart.Y.Scale)
         elseif dragTarget == "icon" and delta.Magnitude > TAP_THRESHOLD then
             iconMoved = true
