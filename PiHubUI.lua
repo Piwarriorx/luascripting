@@ -43,18 +43,29 @@
         Window:Dialog({ Title = "", Text = "", Options = { { "Label", fn } } })
         Window:Unload()
         Window:Notify(text, durationSeconds)
+        Window:SetNotifyEnabled(enabled)          | v5.7.0
+        Window:IsNotifyEnabled()                  | v5.7.0
+        Window:SetFloatingIconVisible(visible)    | v5.7.0
+        Window:IsFloatingIconVisible()            | v5.7.0
+        Window:SetToggleKey(Enum.KeyCode.G)
+        Window:Toggle()
+        Window:IsOpen()
         Tab:AddSection("Title")
         Tab:AddButton({ Name = "", Callback = fn })
-        Tab:AddToggle({ Name = "", Description = "", Default = false, Callback = fn })
+        Tab:AddToggle({ Name = "", Description = "", Default = false, Callback = fn }) -> handle with Set(state) and Get()
         Tab:AddSlider({ Name = "", Min = 0, Max = 100, Increase = 1, Default = 0, Callback = fn })
-        Tab:AddDropdown({ Name = "", Options = {}, Default = "", Callback = fn })
+        Tab:AddDropdown({ Name = "", Options = {}, Default = "", Callback = fn }) -> handle with Set(option), Get() and Refresh(options, default)
         Tab:AddLabel(text) -> handle with SetText(text)
-        Tab:AddInput({ Name = "", Default = "", Placeholder = "", Callback = fn })
+        Tab:AddInput({ Name = "", Default = "", Placeholder = "", Callback = fn }) -> handle with Set(text) and Get()
 
     Behavior notes
         A slider and a dropdown invoke Callback once at construction
         with the resolved default. A toggle does the same only when
         Default is true. Button callbacks run on click only.
+        Set on a toggle or a dropdown is a no-op when the value already
+        matches, so a config load never double fires a callback. The
+        toggle key is ignored while a text box has focus and while the
+        game itself consumed the input.
         Window:Unload() destroys the ScreenGui and disconnects every
         tracked connection, leaving zero residue.
 --]]
@@ -67,7 +78,7 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
 local PiHub = {}
-PiHub.Version = "5.5.0-tokyo"
+PiHub.Version = "5.7.0-tokyo"
 
 local Theme = {
     Background = Color3.fromRGB(26, 27, 38),
@@ -176,6 +187,29 @@ local function viewportSize()
     return Vector2.new(1280, 720)
 end
 
+-- Adaptive sizing: desktops keep the classic 530x320 window, while smaller
+-- screens (phones, tablets, windowed mode) get a window that fits the viewport
+-- with a narrow margin, and the sidebar shrinks proportionally instead of
+-- eating the content area.
+local function computeOpenSize()
+    local view = viewportSize()
+    if view.X >= 900 and view.Y >= 560 then
+        return WINDOW_SIZE
+    end
+    local width = math.clamp(math.floor(view.X * 0.94), 300, WINDOW_SIZE.X.Offset)
+    local height = math.clamp(math.floor(view.Y * 0.88), 240, WINDOW_SIZE.Y.Offset)
+    return UDim2.fromOffset(width, height)
+end
+
+local function sidebarWidthFor(windowWidth)
+    return math.clamp(math.floor(windowWidth * 0.24), 96, SIDEBAR_WIDTH)
+end
+
+local function notifyWidthFor()
+    local view = viewportSize()
+    return math.clamp(math.floor(view.X * 0.55), 180, 250)
+end
+
 local function resolveMountParent()
     if type(gethui) == "function" then
         local ok, hui = pcall(gethui)
@@ -233,11 +267,14 @@ function PiHub:MakeWindow(windowConfig)
         BorderSizePixel = 0,
     }, gui)
 
+    local openSize = computeOpenSize()
+    local sidebarWidth = sidebarWidthFor(openSize.X.Offset)
+
     local mainFrame = create("Frame", {
         Name = "MainFrame",
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.fromScale(0.5, 0.5),
-        Size = WINDOW_SIZE,
+        Size = openSize,
         BackgroundColor3 = Theme.Background,
         BorderSizePixel = 0,
         ClipsDescendants = true,
@@ -307,7 +344,7 @@ function PiHub:MakeWindow(windowConfig)
     local sidebar = create("ScrollingFrame", {
         Name = "Sidebar",
         Position = UDim2.new(0, 0, 0, HEADER_HEIGHT),
-        Size = UDim2.new(0, SIDEBAR_WIDTH, 1, -HEADER_HEIGHT),
+        Size = UDim2.new(0, sidebarWidth, 1, -HEADER_HEIGHT),
         BackgroundColor3 = Theme.Surface,
         BorderSizePixel = 0,
         ScrollBarThickness = 0,
@@ -337,8 +374,8 @@ function PiHub:MakeWindow(windowConfig)
 
     local contentContainer = create("Frame", {
         Name = "ContentContainer",
-        Position = UDim2.new(0, SIDEBAR_WIDTH + 8, 0, HEADER_HEIGHT + 8),
-        Size = UDim2.new(1, -(SIDEBAR_WIDTH + 16), 1, -(HEADER_HEIGHT + 16)),
+        Position = UDim2.new(0, sidebarWidth + 8, 0, HEADER_HEIGHT + 8),
+        Size = UDim2.new(1, -(sidebarWidth + 16), 1, -(HEADER_HEIGHT + 16)),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
     }, mainFrame)
@@ -359,9 +396,9 @@ function PiHub:MakeWindow(windowConfig)
 
     local notifyHolder = create("Frame", {
         Name = "NotificationHolder",
-        AnchorPoint = Vector2.new(1, 0),
-        Position = UDim2.new(1, -12, 0, 12),
-        Size = UDim2.new(0, 250, 1, -24),
+        AnchorPoint = Vector2.new(1, 1),
+        Position = UDim2.new(1, -12, 1, -12),
+        Size = UDim2.new(0, notifyWidthFor(), 1, -24),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
     }, gui)
@@ -369,10 +406,55 @@ function PiHub:MakeWindow(windowConfig)
         Padding = UDim.new(0, 6),
         SortOrder = Enum.SortOrder.LayoutOrder,
         HorizontalAlignment = Enum.HorizontalAlignment.Right,
-        VerticalAlignment = Enum.VerticalAlignment.Top,
+        VerticalAlignment = Enum.VerticalAlignment.Bottom,
     }, notifyHolder)
 
     local windowOpen = true
+
+    -- Keeps the window, the sidebar and the floating icon fitted to the screen
+    -- when the viewport changes (device rotation, windowed mode resize).
+    local function clampIconToViewport()
+        local view = viewportSize()
+        local position = floatIcon.Position
+        local absX = view.X * position.X.Scale + position.X.Offset
+        local absY = view.Y * position.Y.Scale + position.Y.Offset
+        local x = math.clamp(absX, 0, math.max(0, view.X - ICON_SIZE))
+        local y = math.clamp(absY, 0, math.max(0, view.Y - ICON_SIZE))
+        if x ~= absX or y ~= absY then
+            floatIcon.Position = UDim2.fromOffset(x, y)
+        end
+    end
+
+    local function applyAdaptiveSize()
+        openSize = computeOpenSize()
+        sidebarWidth = sidebarWidthFor(openSize.X.Offset)
+        sidebar.Size = UDim2.new(0, sidebarWidth, 1, -HEADER_HEIGHT)
+        contentContainer.Position = UDim2.new(0, sidebarWidth + 8, 0, HEADER_HEIGHT + 8)
+        contentContainer.Size = UDim2.new(1, -(sidebarWidth + 16), 1, -(HEADER_HEIGHT + 16))
+        notifyHolder.Size = UDim2.new(0, notifyWidthFor(), 1, -24)
+        if windowOpen then
+            mainFrame.Size = openSize
+        end
+        clampIconToViewport()
+    end
+
+    local cameraConnection = nil
+    local function watchCamera(camera)
+        if cameraConnection then
+            pcall(function()
+                cameraConnection:Disconnect()
+            end)
+            cameraConnection = nil
+        end
+        if camera then
+            cameraConnection = camera:GetPropertyChangedSignal("ViewportSize"):Connect(applyAdaptiveSize)
+        end
+    end
+    watchCamera(workspace.CurrentCamera)
+    registry:Connect(workspace:GetPropertyChangedSignal("CurrentCamera"), function()
+        watchCamera(workspace.CurrentCamera)
+        task.defer(applyAdaptiveSize)
+    end)
 
     local function setWindowOpen(open)
         if open == windowOpen then
@@ -381,7 +463,7 @@ function PiHub:MakeWindow(windowConfig)
         windowOpen = open
         if open then
             mainFrame.Visible = true
-            tween(mainFrame, 0.25, { Size = WINDOW_SIZE }, BACK, OUT)
+            tween(mainFrame, 0.25, { Size = openSize }, BACK, OUT)
         else
             local closeTween = tween(mainFrame, 0.2, { Size = CLOSED_SIZE }, QUAD, EASE_IN)
             local done
@@ -395,6 +477,60 @@ function PiHub:MakeWindow(windowConfig)
             end)
         end
     end
+
+    -- Optional keyboard hotkey: mirrors a tap on the floating icon. It never
+    -- fires while a text box has focus or while the game consumed the press.
+    local toggleKey = nil
+
+    function WindowObj:SetToggleKey(key)
+        if typeof(key) == "EnumItem" and key.EnumType == Enum.KeyCode then
+            toggleKey = key
+        elseif type(key) == "string" then
+            local ok, resolved = pcall(function()
+                return Enum.KeyCode[key]
+            end)
+            toggleKey = (ok and resolved) or nil
+        else
+            toggleKey = nil
+        end
+    end
+
+    function WindowObj:Toggle()
+        setWindowOpen(not windowOpen)
+    end
+
+    function WindowObj:IsOpen()
+        return windowOpen
+    end
+
+    -- Bottom-right toasts can be silenced; the Activity feed still logs them.
+    local notifyEnabled = true
+
+    function WindowObj:SetNotifyEnabled(enabled)
+        notifyEnabled = enabled == true
+    end
+
+    function WindowObj:IsNotifyEnabled()
+        return notifyEnabled
+    end
+
+    -- The floating icon is the only opener on touch screens without a keyboard.
+    function WindowObj:SetFloatingIconVisible(visible)
+        floatIcon.Visible = visible == true
+    end
+
+    function WindowObj:IsFloatingIconVisible()
+        return floatIcon.Visible
+    end
+
+    registry:Connect(UserInputService.InputBegan, function(input, gameProcessed)
+        if gameProcessed or not toggleKey then
+            return
+        end
+        if input.KeyCode == toggleKey and not UserInputService:GetFocusedTextBox() then
+            setWindowOpen(not windowOpen)
+        end
+    end)
 
     local dragTarget = nil
     local dragStart = Vector3.zero
@@ -480,7 +616,7 @@ function PiHub:MakeWindow(windowConfig)
 
         local tabButton = create("TextButton", {
             Name = tabName .. "_TabBtn",
-            Size = UDim2.new(0, 116, 0, 36),
+            Size = UDim2.new(1, 0, 0, 36),
             BackgroundColor3 = Theme.SwitchOff,
             BorderSizePixel = 0,
             Text = "",
@@ -751,6 +887,8 @@ function PiHub:MakeWindow(windowConfig)
             function InputObj:GetValue()
                 return box.Text
             end
+            InputObj.Set = InputObj.SetValue
+            InputObj.Get = InputObj.GetValue
             return InputObj
         end
 
@@ -844,6 +982,25 @@ function PiHub:MakeWindow(windowConfig)
                 paint(true)
                 callback(state)
             end)
+
+            local ToggleObj = {}
+            ToggleObj.Row = row
+
+            function ToggleObj:Set(newState)
+                local target = newState == true
+                if target == state then
+                    return
+                end
+                state = target
+                paint(true)
+                callback(state)
+            end
+
+            function ToggleObj:Get()
+                return state
+            end
+
+            return ToggleObj
         end
 
         function TabObj:AddSlider(sliderConfig)
@@ -983,9 +1140,8 @@ function PiHub:MakeWindow(windowConfig)
             local COLLAPSED = 38
             local OPTION_HEIGHT = 30
             local MAX_VISIBLE = 6
-            local visibleCount = math.max(1, math.min(#options, MAX_VISIBLE))
-            local listHeight = visibleCount * OPTION_HEIGHT + 8
-            local EXPANDED = COLLAPSED + 6 + listHeight
+            -- buildOptions recomputes this every time the option list changes.
+            local expandedSize = COLLAPSED
 
             local container = create("Frame", {
                 Name = "Dropdown_" .. dropdownName,
@@ -1047,7 +1203,7 @@ function PiHub:MakeWindow(windowConfig)
             local optionsList = create("ScrollingFrame", {
                 Name = "OptionsList",
                 Position = UDim2.new(0, 0, 0, COLLAPSED + 6),
-                Size = UDim2.new(1, 0, 0, listHeight),
+                Size = UDim2.new(1, 0, 0, COLLAPSED),
                 BackgroundColor3 = Theme.Surface,
                 BorderSizePixel = 0,
                 ScrollBarThickness = 2,
@@ -1082,7 +1238,7 @@ function PiHub:MakeWindow(windowConfig)
                 isOpen = open
                 if open then
                     optionsList.Visible = true
-                    tween(container, DROP_TIME, { Size = UDim2.new(1, 0, 0, EXPANDED) }, QUINT, OUT)
+                    tween(container, DROP_TIME, { Size = UDim2.new(1, 0, 0, expandedSize) }, QUINT, OUT)
                 else
                     local closeTween = tween(container, DROP_TIME, { Size = UDim2.new(1, 0, 0, COLLAPSED) }, QUINT, EASE_IN)
                     local done
@@ -1103,70 +1259,145 @@ function PiHub:MakeWindow(windowConfig)
                 end
             end
 
-            for index, option in ipairs(options) do
-                local optionButton = create("TextButton", {
-                    Name = "Option_" .. index,
-                    Size = UDim2.new(1, 0, 0, OPTION_HEIGHT),
-                    BackgroundColor3 = Theme.Component,
-                    BackgroundTransparency = 1,
-                    BorderSizePixel = 0,
-                    Text = "",
-                    AutoButtonColor = false,
-                    LayoutOrder = index,
-                }, optionsList)
-                addCorner(optionButton, 6)
-
-                local optionLabel = create("TextLabel", {
-                    Name = "Title",
-                    Position = UDim2.new(0, 10, 0, 0),
-                    Size = UDim2.new(1, -20, 1, 0),
-                    BackgroundTransparency = 1,
-                    Text = tostring(option),
-                    TextColor3 = Theme.Muted,
-                    TextSize = 12,
-                    Font = Fonts.Body,
-                    TextXAlignment = Enum.TextXAlignment.Left,
-                    TextTruncate = Enum.TextTruncate.AtEnd,
-                }, optionButton)
-
-                table.insert(optionEntries, {
-                    Button = optionButton,
-                    Label = optionLabel,
-                    Value = option,
-                })
-
-                registry:Connect(optionButton.MouseEnter, function()
-                    if option ~= selected then
-                        tween(optionButton, HOVER_TIME, { BackgroundTransparency = 0.5 })
-                    end
-                end)
-                registry:Connect(optionButton.MouseLeave, function()
-                    tween(optionButton, HOVER_TIME, { BackgroundTransparency = 1 })
-                end)
-                registry:Connect(optionButton.MouseButton1Click, function()
-                    selected = option
-                    selectedLabel.Text = tostring(option)
-                    selectedLabel.TextColor3 = Theme.Accent
-                    paintOptions()
-                    setOpen(false)
+            local function selectOption(option, fire)
+                selected = option
+                selectedLabel.Text = tostring(option)
+                selectedLabel.TextColor3 = Theme.Accent
+                paintOptions()
+                if fire ~= false then
                     callback(option)
-                end)
+                end
             end
+
+            local function findOption(option)
+                for _, entry in ipairs(optionEntries) do
+                    if entry.Value == option or tostring(entry.Value) == tostring(option) then
+                        return entry.Value, true
+                    end
+                end
+                return nil, false
+            end
+
+            local function buildOptions(list)
+                for _, entry in ipairs(optionEntries) do
+                    pcall(function()
+                        entry.Button:Destroy()
+                    end)
+                end
+                table.clear(optionEntries)
+
+                for index, option in ipairs(list) do
+                    local optionButton = create("TextButton", {
+                        Name = "Option_" .. index,
+                        Size = UDim2.new(1, 0, 0, OPTION_HEIGHT),
+                        BackgroundColor3 = Theme.Component,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Text = "",
+                        AutoButtonColor = false,
+                        LayoutOrder = index,
+                    }, optionsList)
+                    addCorner(optionButton, 6)
+
+                    local optionLabel = create("TextLabel", {
+                        Name = "Title",
+                        Position = UDim2.new(0, 10, 0, 0),
+                        Size = UDim2.new(1, -20, 1, 0),
+                        BackgroundTransparency = 1,
+                        Text = tostring(option),
+                        TextColor3 = Theme.Muted,
+                        TextSize = 12,
+                        Font = Fonts.Body,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextTruncate = Enum.TextTruncate.AtEnd,
+                    }, optionButton)
+
+                    table.insert(optionEntries, {
+                        Button = optionButton,
+                        Label = optionLabel,
+                        Value = option,
+                    })
+
+                    registry:Connect(optionButton.MouseEnter, function()
+                        if option ~= selected then
+                            tween(optionButton, HOVER_TIME, { BackgroundTransparency = 0.5 })
+                        end
+                    end)
+                    registry:Connect(optionButton.MouseLeave, function()
+                        tween(optionButton, HOVER_TIME, { BackgroundTransparency = 1 })
+                    end)
+                    registry:Connect(optionButton.MouseButton1Click, function()
+                        selectOption(option)
+                        setOpen(false)
+                    end)
+                end
+
+                local visibleCount = math.max(1, math.min(#list, MAX_VISIBLE))
+                local listHeight = visibleCount * OPTION_HEIGHT + 8
+                optionsList.Size = UDim2.new(1, 0, 0, listHeight)
+                expandedSize = COLLAPSED + 6 + listHeight
+                if isOpen then
+                    container.Size = UDim2.new(1, 0, 0, expandedSize)
+                end
+            end
+
+            buildOptions(options)
 
             registry:Connect(selector.MouseButton1Click, function()
                 setOpen(not isOpen)
             end)
 
             if defaultOption ~= nil then
-                selected = defaultOption
-                selectedLabel.Text = tostring(defaultOption)
-                selectedLabel.TextColor3 = Theme.Accent
+                selectOption(defaultOption)
+            else
+                paintOptions()
             end
-            paintOptions()
 
-            if defaultOption ~= nil then
-                callback(defaultOption)
+            local DropdownObj = {}
+            DropdownObj.Container = container
+
+            function DropdownObj:Set(option)
+                local value, found = findOption(option)
+                if not found then
+                    return false
+                end
+                if value ~= selected then
+                    selectOption(value)
+                end
+                setOpen(false)
+                return true
             end
+
+            function DropdownObj:Get()
+                return selected
+            end
+
+            function DropdownObj:Refresh(newOptions, newDefault)
+                local previous = selected
+                local list = {}
+                for _, option in ipairs(newOptions or {}) do
+                    table.insert(list, option)
+                end
+                buildOptions(list)
+                local defaultValue, defaultFound = findOption(newDefault)
+                if defaultFound then
+                    selectOption(defaultValue, defaultValue ~= previous)
+                    return
+                end
+                local keptValue, kept = findOption(previous)
+                if kept then
+                    selected = keptValue
+                    selectedLabel.Text = tostring(keptValue)
+                    selectedLabel.TextColor3 = Theme.Accent
+                    paintOptions()
+                else
+                    selected = nil
+                    selectedLabel.Text = "Select..."
+                    selectedLabel.TextColor3 = Theme.Muted
+                end
+            end
+
+            return DropdownObj
         end
 
         return TabObj
@@ -1324,6 +1555,9 @@ function PiHub:MakeWindow(windowConfig)
     end
 
     function WindowObj:Notify(text, duration)
+        if not notifyEnabled then
+            return
+        end
         if not notifyHolder or not notifyHolder.Parent then
             return
         end
@@ -1345,7 +1579,7 @@ function PiHub:MakeWindow(windowConfig)
 
         local toast = create("Frame", {
             Name = "Toast",
-            Size = UDim2.new(0, 250, 0, 0),
+            Size = UDim2.new(1, 0, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y,
             BackgroundColor3 = Theme.Component,
             BackgroundTransparency = 1,
@@ -1396,6 +1630,12 @@ function PiHub:MakeWindow(windowConfig)
 
     function WindowObj:Unload()
         print("[PiHub] Unloading UI completely...")
+        if cameraConnection then
+            pcall(function()
+                cameraConnection:Disconnect()
+            end)
+            cameraConnection = nil
+        end
         registry:Dispose()
         pcall(function()
             gui:Destroy()
@@ -1430,6 +1670,11 @@ PiHub.Capabilities = {
     Label = true,
     Input = true,
     Notify = true,
+    ToggleKey = true,
+    Handles = true,
+    FloatingIcon = true,
+    NotifyToggle = true,
+    Adaptive = true,
 }
 
 return PiHub
