@@ -42,11 +42,14 @@
         Window:MakeTab({ Name = "Tab", Icon = "" })
         Window:Dialog({ Title = "", Text = "", Options = { { "Label", fn } } })
         Window:Unload()
+        Window:Notify(text, durationSeconds)
         Tab:AddSection("Title")
         Tab:AddButton({ Name = "", Callback = fn })
         Tab:AddToggle({ Name = "", Description = "", Default = false, Callback = fn })
         Tab:AddSlider({ Name = "", Min = 0, Max = 100, Increase = 1, Default = 0, Callback = fn })
         Tab:AddDropdown({ Name = "", Options = {}, Default = "", Callback = fn })
+        Tab:AddLabel(text) -> handle with SetText(text)
+        Tab:AddInput({ Name = "", Default = "", Placeholder = "", Callback = fn })
 
     Behavior notes
         A slider and a dropdown invoke Callback once at construction
@@ -64,7 +67,7 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
 local PiHub = {}
-PiHub.Version = "5.4.0-tokyo"
+PiHub.Version = "5.5.0-tokyo"
 
 local Theme = {
     Background = Color3.fromRGB(26, 27, 38),
@@ -354,6 +357,21 @@ function PiHub:MakeWindow(windowConfig)
     addCorner(floatIcon, 26)
     addStroke(floatIcon, Theme.Accent, 1.5)
 
+    local notifyHolder = create("Frame", {
+        Name = "NotificationHolder",
+        AnchorPoint = Vector2.new(1, 0),
+        Position = UDim2.new(1, -12, 0, 12),
+        Size = UDim2.new(0, 250, 1, -24),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+    }, gui)
+    create("UIListLayout", {
+        Padding = UDim.new(0, 6),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        HorizontalAlignment = Enum.HorizontalAlignment.Right,
+        VerticalAlignment = Enum.VerticalAlignment.Top,
+    }, notifyHolder)
+
     local windowOpen = true
 
     local function setWindowOpen(open)
@@ -628,6 +646,112 @@ function PiHub:MakeWindow(windowConfig)
             registry:Connect(row.MouseButton1Click, function()
                 callback()
             end)
+        end
+
+        function TabObj:AddLabel(labelConfig)
+            local labelText = labelConfig
+            if typeof(labelConfig) == "table" then
+                labelText = labelConfig.Text or labelConfig[1] or ""
+            end
+            labelText = tostring(labelText or "")
+
+            local row = create("Frame", {
+                Name = "LabelRow",
+                Size = UDim2.new(1, 0, 0, 18),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+            }, tabContent)
+
+            local textLabel = create("TextLabel", {
+                Name = "LabelText",
+                Position = UDim2.new(0, 4, 0, 0),
+                Size = UDim2.new(1, -8, 1, 0),
+                BackgroundTransparency = 1,
+                Text = labelText,
+                TextColor3 = Theme.Muted,
+                TextSize = 12,
+                Font = Fonts.Body,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+            }, row)
+
+            local LabelObj = {}
+            LabelObj.TextLabel = textLabel
+            function LabelObj:SetText(newText)
+                textLabel.Text = tostring(newText or "")
+            end
+            return LabelObj
+        end
+
+        function TabObj:AddInput(inputConfig)
+            inputConfig = inputConfig or {}
+            local inputName = tostring(inputConfig.Name or inputConfig[1] or "Input")
+            local defaultText = tostring(inputConfig.Default or "")
+            local placeholder = tostring(inputConfig.Placeholder or "...")
+            local callback = type(inputConfig.Callback) == "function" and inputConfig.Callback or function() end
+
+            local row = create("Frame", {
+                Name = "Input_" .. inputName,
+                Size = UDim2.new(1, 0, 0, 38),
+                BackgroundColor3 = Theme.Component,
+                BorderSizePixel = 0,
+            }, tabContent)
+            addCorner(row, 8)
+            addStroke(row, Theme.Border, 1)
+
+            create("TextLabel", {
+                Name = "Title",
+                Position = UDim2.new(0, 12, 0, 0),
+                Size = UDim2.new(1, -160, 1, 0),
+                BackgroundTransparency = 1,
+                Text = inputName,
+                TextColor3 = Theme.Text,
+                TextSize = 13,
+                Font = Fonts.Label,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+            }, row)
+
+            local box = create("TextBox", {
+                Name = "Box",
+                AnchorPoint = Vector2.new(1, 0.5),
+                Position = UDim2.new(1, -10, 0.5, 0),
+                Size = UDim2.new(0, 130, 0, 26),
+                BackgroundColor3 = Theme.SwitchOff,
+                BorderSizePixel = 0,
+                Text = defaultText,
+                PlaceholderText = placeholder,
+                PlaceholderColor3 = Theme.Muted,
+                TextColor3 = Theme.Text,
+                TextSize = 12,
+                Font = Fonts.Body,
+                ClearTextOnFocus = false,
+                TextXAlignment = Enum.TextXAlignment.Right,
+            }, row)
+            addCorner(box, 6)
+            addStroke(box, Theme.Border, 1)
+            create("UIPadding", {
+                PaddingRight = UDim.new(0, 6),
+                PaddingLeft = UDim.new(0, 6),
+            }, box)
+
+            registry:Connect(box.Focused, function()
+                tween(box, HOVER_TIME, { BackgroundColor3 = Theme.ComponentPressed })
+            end)
+            registry:Connect(box.FocusLost, function(enterPressed)
+                tween(box, STATE_TIME, { BackgroundColor3 = Theme.SwitchOff })
+                callback(box.Text, enterPressed)
+            end)
+
+            local InputObj = {}
+            InputObj.Box = box
+            function InputObj:SetValue(newValue)
+                box.Text = tostring(newValue or "")
+            end
+            function InputObj:GetValue()
+                return box.Text
+            end
+            return InputObj
         end
 
         function TabObj:AddToggle(toggleConfig)
@@ -1199,6 +1323,77 @@ function PiHub:MakeWindow(windowConfig)
         activeDialog = backdrop
     end
 
+    function WindowObj:Notify(text, duration)
+        if not notifyHolder or not notifyHolder.Parent then
+            return
+        end
+        local message = tostring(text or "")
+        local lifetime = tonumber(duration) or 4
+
+        local frames = {}
+        for _, child in ipairs(notifyHolder:GetChildren()) do
+            if child:IsA("Frame") then
+                table.insert(frames, child)
+            end
+        end
+        while #frames >= 5 do
+            local oldest = table.remove(frames, 1)
+            pcall(function()
+                oldest:Destroy()
+            end)
+        end
+
+        local toast = create("Frame", {
+            Name = "Toast",
+            Size = UDim2.new(0, 250, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundColor3 = Theme.Component,
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+        }, notifyHolder)
+        addCorner(toast, 8)
+        local toastStroke = addStroke(toast, Theme.Accent, 1)
+        toastStroke.Transparency = 1
+
+        create("UIPadding", {
+            PaddingTop = UDim.new(0, 8),
+            PaddingBottom = UDim.new(0, 8),
+            PaddingLeft = UDim.new(0, 10),
+            PaddingRight = UDim.new(0, 10),
+        }, toast)
+
+        local messageLabel = create("TextLabel", {
+            Name = "Message",
+            Size = UDim2.new(1, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundTransparency = 1,
+            Text = message,
+            TextColor3 = Theme.Text,
+            TextSize = 12,
+            Font = Fonts.Body,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextWrapped = true,
+            TextTransparency = 1,
+        }, toast)
+
+        tween(toast, 0.2, { BackgroundTransparency = 0 })
+        tween(toastStroke, 0.2, { Transparency = 0 })
+        tween(messageLabel, 0.2, { TextTransparency = 0 })
+
+        task.delay(lifetime, function()
+            if not toast or not toast.Parent then
+                return
+            end
+            tween(toast, 0.25, { BackgroundTransparency = 1 })
+            tween(toastStroke, 0.25, { Transparency = 1 })
+            tween(messageLabel, 0.25, { TextTransparency = 1 })
+            task.wait(0.3)
+            pcall(function()
+                toast:Destroy()
+            end)
+        end)
+    end
+
     function WindowObj:Unload()
         print("[PiHub] Unloading UI completely...")
         registry:Dispose()
@@ -1230,5 +1425,11 @@ function PiHub:MakeWindow(windowConfig)
 end
 
 PiHub.Theme = Theme
+
+PiHub.Capabilities = {
+    Label = true,
+    Input = true,
+    Notify = true,
+}
 
 return PiHub
