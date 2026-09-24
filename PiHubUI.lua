@@ -445,7 +445,12 @@ function PiHub:MakeWindow(windowConfig)
     }, notifyHolder)
 
     local windowOpen = true
-    floatIcon.Visible = false
+    local floatingIconEnabled = true
+
+    local function updateFloatingIconVisibility()
+        floatIcon.Visible = floatingIconEnabled and (not windowOpen)
+    end
+    updateFloatingIconVisibility()
 
     -- Keeps the window, the sidebar and the floating icon fitted to the screen
     -- when the viewport changes (device rotation, windowed mode resize).
@@ -508,7 +513,7 @@ function PiHub:MakeWindow(windowConfig)
             return
         end
         windowOpen = open
-        floatIcon.Visible = not open
+        updateFloatingIconVisibility()
         if open then
             mainFrame.Visible = true
             tween(mainFrame, 0.25, { Size = openSize }, BACK, OUT)
@@ -564,11 +569,12 @@ function PiHub:MakeWindow(windowConfig)
 
     -- The floating icon is the only opener on touch screens without a keyboard.
     function WindowObj:SetFloatingIconVisible(visible)
-        floatIcon.Visible = visible == true
+        floatingIconEnabled = visible == true
+        updateFloatingIconVisibility()
     end
 
     function WindowObj:IsFloatingIconVisible()
-        return floatIcon.Visible
+        return floatingIconEnabled
     end
 
     function WindowObj:SetScale(scale)
