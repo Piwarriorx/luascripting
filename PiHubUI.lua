@@ -369,7 +369,7 @@ function PiHub:MakeWindow(windowConfig)
         Size = UDim2.fromOffset(30, 30),
         BackgroundColor3 = Theme.Component,
         BorderSizePixel = 0,
-        Text = "\226\156\149",
+        Text = "X",
         TextColor3 = Theme.Text,
         TextSize = 14,
         Font = Fonts.Title,
@@ -446,6 +446,7 @@ function PiHub:MakeWindow(windowConfig)
     }, notifyHolder)
 
     local windowOpen = true
+    floatIcon.Visible = false
 
     -- Keeps the window, the sidebar and the floating icon fitted to the screen
     -- when the viewport changes (device rotation, windowed mode resize).
@@ -469,6 +470,16 @@ function PiHub:MakeWindow(windowConfig)
         contentContainer.Position = UDim2.new(0, sidebarWidth + 8, 0, HEADER_HEIGHT + 8)
         contentContainer.Size = UDim2.new(1, -(sidebarWidth + 16), 1, -(HEADER_HEIGHT + 16))
         notifyHolder.Size = UDim2.new(0, notifyWidthFor(), 1, -24)
+        -- On small viewports (mobile landscape), push center down so the header
+        -- clears the Roblox topbar when IgnoreOnInset is active.
+        local view = viewportSize()
+        local topInset = 0
+        if view.Y < 520 then
+            topInset = 18
+        elseif view.Y < 700 then
+            topInset = 10
+        end
+        mainFrame.Position = UDim2.new(0.5, 0, 0.5, topInset)
         if windowOpen then
             mainFrame.Size = openSize
         end
@@ -498,6 +509,7 @@ function PiHub:MakeWindow(windowConfig)
             return
         end
         windowOpen = open
+        floatIcon.Visible = not open
         if open then
             mainFrame.Visible = true
             tween(mainFrame, 0.25, { Size = openSize }, BACK, OUT)
@@ -1240,7 +1252,7 @@ function PiHub:MakeWindow(windowConfig)
                 Position = UDim2.new(1, -10, 0.5, 0),
                 Size = UDim2.fromOffset(14, 14),
                 BackgroundTransparency = 1,
-                Text = "\226\150\190",
+                Text = "v",
                 TextColor3 = Theme.Muted,
                 TextSize = 12,
                 Font = Fonts.Body,
