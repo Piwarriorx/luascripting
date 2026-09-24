@@ -105,7 +105,7 @@ local WINDOW_SIZE = UDim2.fromOffset(530, 320)
 local CLOSED_SIZE = UDim2.fromOffset(0, 0)
 local HEADER_HEIGHT = 42
 local SIDEBAR_WIDTH = 165
-local ICON_SIZE = 52
+local ICON_SIZE = 44
 local TAP_THRESHOLD = 6
 
 local HOVER_TIME = 0.12
@@ -459,7 +459,7 @@ function PiHub:MakeWindow(windowConfig)
         ScaleType = Enum.ScaleType.Fit,
         AutoButtonColor = false,
     }, gui)
-    addCorner(floatIcon, 26)
+    addCorner(floatIcon, 22)
     addStroke(floatIcon, Theme.Accent, 1.5)
 
     local notifyHolder = create("Frame", {
