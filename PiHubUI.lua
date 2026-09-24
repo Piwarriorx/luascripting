@@ -232,12 +232,12 @@ local function computeOpenSize()
     local scale = computeUiScale()
 
     if isMobileDevice() then
-        -- Mobile Sizing: 60% width and 55% height
-        local targetRenderedW = math.clamp(math.floor(view.X * 0.60), 340, 640)
-        local targetRenderedH = math.clamp(math.floor(view.Y * 0.55), 230, 380)
+        -- Mobile Sizing: 70% width (+10%) and 60% height (+5%)
+        local targetRenderedW = math.clamp(math.floor(view.X * 0.70), 340, 750)
+        local targetRenderedH = math.clamp(math.floor(view.Y * 0.60), 230, 420)
 
-        targetRenderedW = math.min(targetRenderedW, view.X - 48)
-        targetRenderedH = math.min(targetRenderedH, view.Y - 50)
+        targetRenderedW = math.min(targetRenderedW, view.X - 32)
+        targetRenderedH = math.min(targetRenderedH, view.Y - 40)
 
         local width = math.floor(targetRenderedW / scale)
         local height = math.floor(targetRenderedH / scale)
@@ -337,7 +337,7 @@ function PiHub:MakeWindow(windowConfig)
     local mainFrame = create("Frame", {
         Name = "MainFrame",
         AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = UDim2.fromScale(0.5, 0.5),
+        Position = UDim2.new(isMobileDevice() and 0.55 or 0.5, 0, 0.5, 0),
         Size = openSize,
         BackgroundColor3 = Theme.Background,
         BorderSizePixel = 0,
@@ -507,7 +507,7 @@ function PiHub:MakeWindow(windowConfig)
         contentContainer.Position = UDim2.new(0, sidebarWidth + 8, 0, HEADER_HEIGHT + 8)
         contentContainer.Size = UDim2.new(1, -(sidebarWidth + 16), 1, -(HEADER_HEIGHT + 16))
         notifyHolder.Size = UDim2.new(0, notifyWidthFor(), 1, -24)
-        mainFrame.Position = UDim2.fromScale(0.5, 0.5)
+        mainFrame.Position = UDim2.new(isMobileDevice() and 0.55 or 0.5, 0, 0.5, 0)
         if windowOpen then
             mainFrame.Size = openSize
         end
