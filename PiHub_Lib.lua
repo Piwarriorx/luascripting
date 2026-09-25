@@ -1,25 +1,25 @@
 --[[
     ================================================================================
-    PiLib - HOSTED LIBRARY (HttpGet version)
+    PiHub_Lib - HOSTED LIBRARY (HttpGet version)
     Upload this file to your hosting provider (e.g., GitHub raw), then set
-    its URL in PiLib_HttpGet.lua. This returns the PiLib table for loadstring.
+    its URL in your loader script. This returns the PiHub_Lib table for loadstring.
 
     Usage:
-        local PiLib = loadstring(game:HttpGet("URL_OF_THIS_FILE", true))()
+        local PiHub_Lib = loadstring(game:HttpGet("URL_OF_THIS_FILE", true))()
     ================================================================================
 --]]
 
-local PiLib = (function()
+local PiHub_Lib = (function()
 --[[
     ================================================================================
-    PiLib - Hybrid Roblox UI Library (Fluent x Redz V5 Remake)
+    PiHub_Lib - Hybrid Roblox UI Library (Fluent x Redz V5 Remake)
     Architected for: Clean Flat Minimalist, Adaptive Motion, Unified Flags & SaveManager, Dual Minimizer
     ================================================================================
 --]]
 
-local PiLib = {
+local PiHub_Lib = {
     Version = "1.0.0",
-    Title = "PiLib",
+    Title = "PiHub_Lib",
     Options = {},
     Flags = {},
     Signals = {},
@@ -82,7 +82,7 @@ local function GetGuiParent()
 end
 
 -- [SECTION 2] THEMES (Clean Flat Minimalist)
-PiLib.Themes = {
+PiHub_Lib.Themes = {
     Dark = {
         Name = "Dark",
         Background = Color3.fromRGB(20, 20, 23),
@@ -199,12 +199,12 @@ PiLib.Themes = {
 local Creator = {}
 
 function Creator.GetThemeProperty(prop)
-    local theme = PiLib.Themes[PiLib.CurrentTheme] or PiLib.Themes.Dark
-    return theme[prop] or PiLib.Themes.Dark[prop]
+    local theme = PiHub_Lib.Themes[PiHub_Lib.CurrentTheme] or PiHub_Lib.Themes.Dark
+    return theme[prop] or PiHub_Lib.Themes.Dark[prop]
 end
 
 function Creator.AddThemeObject(instance, propTable)
-    table.insert(PiLib.ThemeObjects, { Instance = instance, Properties = propTable })
+    table.insert(PiHub_Lib.ThemeObjects, { Instance = instance, Properties = propTable })
     for propName, themeKey in pairs(propTable) do
         local val = Creator.GetThemeProperty(themeKey)
         if val ~= nil then
@@ -214,7 +214,7 @@ function Creator.AddThemeObject(instance, propTable)
     return instance
 end
 
-function PiLib:SetTheme(themeName)
+function PiHub_Lib:SetTheme(themeName)
     if not self.Themes[themeName] then return end
     self.CurrentTheme = themeName
     for _, item in ipairs(self.ThemeObjects) do
@@ -230,7 +230,7 @@ function PiLib:SetTheme(themeName)
     end
 end
 
-function PiLib:GetThemes()
+function PiHub_Lib:GetThemes()
     local list = {}
     for name, _ in pairs(self.Themes) do
         table.insert(list, name)
@@ -279,7 +279,7 @@ end
 
 function Creator.AddSignal(signal, callback)
     local connection = signal:Connect(callback)
-    table.insert(PiLib.Signals, connection)
+    table.insert(PiHub_Lib.Signals, connection)
     return connection
 end
 
@@ -1106,7 +1106,7 @@ local IconsMap = {
     zoomout = 10747384679
 }
 
-function PiLib:GetIcon(iconName)
+function PiHub_Lib:GetIcon(iconName)
     if not iconName or iconName == "" then return nil end
     -- Normalize Lucide-style names: "layout-dashboard" -> "layoutdashboard"
     iconName = string.lower(iconName):gsub("[%s%-]+", "")
@@ -1123,10 +1123,10 @@ end
 -- [SECTION 5] NOTIFICATION SYSTEM
 local NotificationHolder = nil
 
-function PiLib:InitNotificationHolder(screenGui)
+function PiHub_Lib:InitNotificationHolder(screenGui)
     if NotificationHolder then return end
     NotificationHolder = Creator.New("Frame", {
-        Name = "PiLib_NotificationHolder",
+        Name = "PiHub_Lib_NotificationHolder",
         Size = UDim2.new(0, 300, 1, -40),
         Position = UDim2.new(1, -20, 1, -20),
         AnchorPoint = Vector2.new(1, 1),
@@ -1142,7 +1142,7 @@ function PiLib:InitNotificationHolder(screenGui)
     })
 end
 
-function PiLib:Notify(config)
+function PiHub_Lib:Notify(config)
     local title = config.Title or "Notification"
     local content = config.Content or ""
     local subContent = config.SubContent or ""
@@ -1223,22 +1223,22 @@ function PiLib:Notify(config)
 end
 
 -- [SECTION 6] WINDOW CREATION (Flat Minimalist + Dual Minimizer)
-function PiLib:CreateWindow(config)
-    assert(config.Title, "PiLib: Window Title is required!")
+function PiHub_Lib:CreateWindow(config)
+    assert(config.Title, "PiHub_Lib: Window Title is required!")
 
     -- Auto-Unload previous instance if re-executed
     if self.Window then
         pcall(function() self.Window:Destroy() end)
     end
     if getgenv then
-        if getgenv().PiLibInstance and type(getgenv().PiLibInstance.Unload) == "function" then
-            pcall(function() getgenv().PiLibInstance:Unload() end)
+        if getgenv().PiHub_LibInstance and type(getgenv().PiHub_LibInstance.Unload) == "function" then
+            pcall(function() getgenv().PiHub_LibInstance:Unload() end)
         end
     end
 
     local titleText = config.Title
     local subTitleText = config.SubTitle or ""
-    local scriptFolder = config.ScriptFolder or "PiLib_Configs"
+    local scriptFolder = config.ScriptFolder or "PiHub_Lib_Configs"
     local defaultSize = config.Size or (isTouch and UDim2.fromOffset(500, 360) or UDim2.fromOffset(560, 420))
     local minKey = config.MinimizeKey or Enum.KeyCode.LeftControl
     local defaultTheme = config.Theme or "Dark"
@@ -1248,14 +1248,14 @@ function PiLib:CreateWindow(config)
     -- ScreenGui Setup
     local targetParent, protect = GetGuiParent()
     if targetParent then
-        local oldGui = targetParent:FindFirstChild("PiLib_UI")
+        local oldGui = targetParent:FindFirstChild("PiHub_Lib_UI")
         if oldGui then
             pcall(function() oldGui:Destroy() end)
         end
     end
 
     local screenGui = Creator.New("ScreenGui", {
-        Name = "PiLib_UI",
+        Name = "PiHub_Lib_UI",
         ResetOnSpawn = false,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
         DisplayOrder = 100
@@ -1494,7 +1494,7 @@ function PiLib:CreateWindow(config)
     -- [DUAL MINIMIZER SETUP]
     -- 1. Mobile Draggable Floating Button
     local mobileBtn = Creator.New("ImageButton", {
-        Name = "PiLib_MobileMinimizer",
+        Name = "PiHub_Lib_MobileMinimizer",
         Size = UDim2.fromOffset(42, 42),
         Position = UDim2.new(0, 20, 0.5, -21),
         BorderSizePixel = 0,
@@ -1692,21 +1692,21 @@ function PiLib:CreateWindow(config)
 
     -- Flags API
     function WindowObj:GetFlag(flagName)
-        return PiLib.Flags[flagName]
+        return PiHub_Lib.Flags[flagName]
     end
 
     function WindowObj:SetFlag(flagName, value)
-        PiLib.Flags[flagName] = value
+        PiHub_Lib.Flags[flagName] = value
         -- If an element matches this flag, update its display value
-        if PiLib.Options[flagName] and PiLib.Options[flagName].SetValue then
-            PiLib.Options[flagName]:SetValue(value)
+        if PiHub_Lib.Options[flagName] and PiHub_Lib.Options[flagName].SetValue then
+            PiHub_Lib.Options[flagName]:SetValue(value)
         end
     end
 
     -- Tab API
     function WindowObj:AddTab(tabConfig)
         local tabTitle = tabConfig.Title or "Tab"
-        local tabIcon = PiLib:GetIcon(tabConfig.Icon)
+        local tabIcon = PiHub_Lib:GetIcon(tabConfig.Icon)
 
         -- Tab Button in Sidebar
         local tabBtn = Creator.New("TextButton", {
@@ -1965,7 +1965,7 @@ function PiLib:CreateWindow(config)
             local callback = config.Callback or function() end
 
             local currentVal = defaultVal
-            PiLib.Flags[flagName] = currentVal
+            PiHub_Lib.Flags[flagName] = currentVal
 
             local toggleCard = Creator.New("TextButton", {
                 Size = UDim2.new(1, 0, 0, tDesc ~= "" and 42 or 34),
@@ -2031,7 +2031,7 @@ function PiLib:CreateWindow(config)
             function ToggleObj:SetValue(val)
                 currentVal = val
                 ToggleObj.Value = val
-                PiLib.Flags[flagName] = val
+                PiHub_Lib.Flags[flagName] = val
 
                 local targetPos = val and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
                 local targetColor = val and Creator.GetThemeProperty("ToggleActive") or Creator.GetThemeProperty("ToggleTrack")
@@ -2045,7 +2045,7 @@ function PiLib:CreateWindow(config)
                 ToggleObj:SetValue(not currentVal)
             end)
 
-            PiLib.Options[id] = ToggleObj
+            PiHub_Lib.Options[id] = ToggleObj
             return ToggleObj
         end
 
@@ -2064,7 +2064,7 @@ function PiLib:CreateWindow(config)
             local callback = config.Callback or function() end
 
             local currentVal = math.clamp(defaultVal, minVal, maxVal)
-            PiLib.Flags[flagName] = currentVal
+            PiHub_Lib.Flags[flagName] = currentVal
 
             local sliderCard = Creator.New("Frame", {
                 Size = UDim2.new(1, 0, 0, 48),
@@ -2135,7 +2135,7 @@ function PiLib:CreateWindow(config)
 
                 currentVal = stepped
                 SliderObj.Value = stepped
-                PiLib.Flags[flagName] = stepped
+                PiHub_Lib.Flags[flagName] = stepped
                 valLabel.Text = tostring(stepped)
                 barFill.Size = UDim2.new((stepped - minVal) / (maxVal - minVal), 0, 1, 0)
                 pcall(callback, stepped)
@@ -2145,7 +2145,7 @@ function PiLib:CreateWindow(config)
                 local clamped = math.clamp(val, minVal, maxVal)
                 currentVal = clamped
                 SliderObj.Value = clamped
-                PiLib.Flags[flagName] = clamped
+                PiHub_Lib.Flags[flagName] = clamped
                 valLabel.Text = tostring(clamped)
                 barFill.Size = UDim2.new((clamped - minVal) / (maxVal - minVal), 0, 1, 0)
                 pcall(callback, clamped)
@@ -2171,7 +2171,7 @@ function PiLib:CreateWindow(config)
                 end
             end)
 
-            PiLib.Options[id] = SliderObj
+            PiHub_Lib.Options[id] = SliderObj
             return SliderObj
         end
 
@@ -2189,7 +2189,7 @@ function PiLib:CreateWindow(config)
             local callback = config.Callback or function() end
 
             local currentVal = defaultVal
-            PiLib.Flags[flagName] = currentVal
+            PiHub_Lib.Flags[flagName] = currentVal
 
             local isOpen = false
             local dropCard = Creator.New("Frame", {
@@ -2348,14 +2348,14 @@ function PiLib:CreateWindow(config)
                             if type(currentVal) ~= "table" then currentVal = {} end
                             currentVal[optStr] = not currentVal[optStr]
                             DropObj.Value = currentVal
-                            PiLib.Flags[flagName] = currentVal
+                            PiHub_Lib.Flags[flagName] = currentVal
                             updateDisplay()
                             updateOptionMarkers()
                             pcall(callback, currentVal)
                         else
                             currentVal = optStr
                             DropObj.Value = optStr
-                            PiLib.Flags[flagName] = optStr
+                            PiHub_Lib.Flags[flagName] = optStr
                             updateDisplay()
                             updateOptionMarkers()
                             pcall(callback, optStr)
@@ -2380,7 +2380,7 @@ function PiLib:CreateWindow(config)
             function DropObj:SetValue(val)
                 currentVal = val
                 DropObj.Value = val
-                PiLib.Flags[flagName] = val
+                PiHub_Lib.Flags[flagName] = val
                 updateDisplay()
                 updateOptionMarkers()
                 pcall(callback, val)
@@ -2393,7 +2393,7 @@ function PiLib:CreateWindow(config)
                 Creator.AdaptiveTween(arrowIcon, { Rotation = isOpen and 180 or 0 }, 0.2)
             end)
 
-            PiLib.Options[id] = DropObj
+            PiHub_Lib.Options[id] = DropObj
             return DropObj
         end
 
@@ -2411,7 +2411,7 @@ function PiLib:CreateWindow(config)
             local callback = config.Callback or function() end
 
             local currentVal = defaultVal
-            PiLib.Flags[flagName] = currentVal
+            PiHub_Lib.Flags[flagName] = currentVal
 
             local inputCard = Creator.New("Frame", {
                 Size = UDim2.new(1, 0, 0, 42),
@@ -2468,7 +2468,7 @@ function PiLib:CreateWindow(config)
                 end
                 currentVal = text
                 InputObj.Value = text
-                PiLib.Flags[flagName] = text
+                PiHub_Lib.Flags[flagName] = text
                 textBox.Text = text
                 pcall(callback, text)
             end
@@ -2481,7 +2481,7 @@ function PiLib:CreateWindow(config)
                 applyText(tostring(val))
             end
 
-            PiLib.Options[id] = InputObj
+            PiHub_Lib.Options[id] = InputObj
             return InputObj
         end
 
@@ -2502,7 +2502,7 @@ function PiLib:CreateWindow(config)
             local changedCallback = config.ChangedCallback or function() end
 
             local currentKey = defaultKey
-            PiLib.Flags[flagName] = currentKey
+            PiHub_Lib.Flags[flagName] = currentKey
 
             local keybindCard = Creator.New("Frame", {
                 Size = UDim2.new(1, 0, 0, kDesc ~= "" and 42 or 34),
@@ -2562,7 +2562,7 @@ function PiLib:CreateWindow(config)
             local function setKey(newKey)
                 currentKey = newKey
                 KeybindObj.Value = newKey
-                PiLib.Flags[flagName] = newKey
+                PiHub_Lib.Flags[flagName] = newKey
                 bindButton.Text = "[ " .. tostring(newKey.Name) .. " ]"
                 bindButton.TextColor3 = Creator.GetThemeProperty("Accent")
                 pcall(changedCallback, newKey)
@@ -2602,7 +2602,7 @@ function PiLib:CreateWindow(config)
                 end
             end)
 
-            PiLib.Options[id] = KeybindObj
+            PiHub_Lib.Options[id] = KeybindObj
             return KeybindObj
         end
 
@@ -2668,7 +2668,7 @@ function PiLib:CreateWindow(config)
             copyBtn.Activated:Connect(function()
                 local setclipboard = setclipboard or toclipboard or function() end
                 pcall(setclipboard, inviteLink)
-                PiLib:Notify({
+                PiHub_Lib:Notify({
                     Title = "Discord Invite",
                     Content = "Copied invite to clipboard: " .. inviteLink,
                     Duration = 4
@@ -2682,14 +2682,14 @@ function PiLib:CreateWindow(config)
     end
 
     function WindowObj:Destroy()
-        for i = #PiLib.Signals, 1, -1 do
-            local conn = table.remove(PiLib.Signals, i)
+        for i = #PiHub_Lib.Signals, 1, -1 do
+            local conn = table.remove(PiHub_Lib.Signals, i)
             pcall(function() conn:Disconnect() end)
         end
         pcall(function() screenGui:Destroy() end)
-        PiLib.Window = nil
-        PiLib.Loaded = false
-        PiLib.Unloaded = true
+        PiHub_Lib.Window = nil
+        PiHub_Lib.Loaded = false
+        PiHub_Lib.Unloaded = true
     end
 
     function WindowObj:Unload()
@@ -2701,7 +2701,7 @@ function PiLib:CreateWindow(config)
     return WindowObj
 end
 
-function PiLib:Unload()
+function PiHub_Lib:Unload()
     if self.Window then
         self.Window:Destroy()
     end
@@ -2709,8 +2709,8 @@ end
 
 -- [SECTION 7] UNIFIED SAVE MANAGER (Configs & Flags)
 local SaveManager = {
-    Folder = "PiLibConfigs",
-    Library = PiLib,
+    Folder = "PiHubConfigs",
+    Library = PiHub_Lib,
     AutoloadListeners = {}
 }
 
@@ -2733,8 +2733,8 @@ function SaveManager:Save(configName)
     local fullPath = self.Folder .. "/settings/" .. configName .. ".json"
 
     local data = {
-        Flags = PiLib.Flags,
-        Theme = PiLib.CurrentTheme
+        Flags = PiHub_Lib.Flags,
+        Theme = PiHub_Lib.CurrentTheme
     }
 
     local success, encoded = pcall(HttpService.JSONEncode, HttpService, data)
@@ -2754,12 +2754,12 @@ function SaveManager:Load(configName)
     local success, decoded = pcall(HttpService.JSONDecode, HttpService, content)
     if success and type(decoded) == "table" then
         if decoded.Theme then
-            PiLib:SetTheme(decoded.Theme)
+            PiHub_Lib:SetTheme(decoded.Theme)
         end
         if decoded.Flags and type(decoded.Flags) == "table" then
             for flagKey, flagVal in pairs(decoded.Flags) do
-                if PiLib.Window then
-                    PiLib.Window:SetFlag(flagKey, flagVal)
+                if PiHub_Lib.Window then
+                    PiHub_Lib.Window:SetFlag(flagKey, flagVal)
                 end
             end
         end
@@ -2861,7 +2861,7 @@ function SaveManager:BuildConfigSection(tab)
                     local updated = SaveManager:GetConfigs()
                     configDropdown:SetValues(updated)
                     configDropdown:SetValue(name)
-                    PiLib:Notify({ Title = "Config Saved", Content = "Saved profile: " .. name })
+                    PiHub_Lib:Notify({ Title = "Config Saved", Content = "Saved profile: " .. name })
                 end
             end
         end
@@ -2873,7 +2873,7 @@ function SaveManager:BuildConfigSection(tab)
             local selected = configDropdown.Value
             if selected and selected ~= "" and selected ~= "None" then
                 if SaveManager:Load(selected) then
-                    PiLib:Notify({ Title = "Config Loaded", Content = "Loaded profile: " .. selected })
+                    PiHub_Lib:Notify({ Title = "Config Loaded", Content = "Loaded profile: " .. selected })
                 end
             end
         end
@@ -2893,9 +2893,9 @@ function SaveManager:BuildConfigSection(tab)
                     if wasAutoload then
                         content = content .. " (autoload cleared)"
                     end
-                    PiLib:Notify({ Title = "Config Deleted", Content = content })
+                    PiHub_Lib:Notify({ Title = "Config Deleted", Content = content })
                 else
-                    PiLib:Notify({ Title = "Delete Failed", Content = "Could not find profile: " .. selected })
+                    PiHub_Lib:Notify({ Title = "Delete Failed", Content = "Could not find profile: " .. selected })
                 end
             end
         end
@@ -2907,7 +2907,7 @@ function SaveManager:BuildConfigSection(tab)
             local selected = configDropdown.Value
             if selected and selected ~= "" and selected ~= "None" then
                 if SaveManager:SetAutoload(selected) then
-                    PiLib:Notify({ Title = "Autoload Set", Content = "Profile " .. selected .. " will load on start." })
+                    PiHub_Lib:Notify({ Title = "Autoload Set", Content = "Profile " .. selected .. " will load on start." })
                 end
             end
         end
@@ -2942,10 +2942,10 @@ function SaveManager:LoadAutoloadConfig()
     end
 end
 
-PiLib.SaveManager = SaveManager
+PiHub_Lib.SaveManager = SaveManager
 
-return PiLib
+return PiHub_Lib
 
 end)()
 
-return PiLib
+return PiHub_Lib
