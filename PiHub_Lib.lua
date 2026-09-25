@@ -1239,7 +1239,22 @@ function PiHub_Lib:CreateWindow(config)
     local titleText = config.Title
     local subTitleText = config.SubTitle or ""
     local scriptFolder = config.ScriptFolder or "PiHub_Lib_Configs"
-    local defaultSize = config.Size or (isTouch and UDim2.fromOffset(500, 360) or UDim2.fromOffset(560, 420))
+    -- [ADAPTIVE SIZE]
+    -- Touch devices get a smaller default window, and every size is clamped to the
+    -- viewport, so the menu still fits on a phone screen.
+    local viewportNow = (CurrentCamera and CurrentCamera.ViewportSize) or Vector2.new(1366, 768)
+    local requestedSize = config.Size or (isTouch and UDim2.fromOffset(500, 360) or UDim2.fromOffset(560, 420))
+    local baseWidth = math.max(260, (requestedSize.X.Offset > 0) and requestedSize.X.Offset or 560)
+    local baseHeight = math.max(200, (requestedSize.Y.Offset > 0) and requestedSize.Y.Offset or 420)
+
+    local function fitSizeToViewport(viewportOverride)
+        local vp = viewportOverride or (CurrentCamera and CurrentCamera.ViewportSize) or viewportNow
+        local width = math.min(baseWidth, math.max(240, vp.X - 40))
+        local height = math.min(baseHeight, math.max(180, vp.Y - 80))
+        return UDim2.fromOffset(width, height)
+    end
+
+    local defaultSize = fitSizeToViewport()
     local minKey = config.MinimizeKey or Enum.KeyCode.LeftControl
     local defaultTheme = config.Theme or "Dark"
 
@@ -1267,6 +1282,20 @@ function PiHub_Lib:CreateWindow(config)
 
     self:InitNotificationHolder(screenGui)
 
+    -- Origin probe: a zero size frame at (0, 0) marks where this ScreenGui's coordinate
+    -- space starts, including the top bar inset, so window math works on every device.
+    local originProbe = Creator.New("Frame", {
+        Name = "PiHub_Lib_OriginProbe",
+        Size = UDim2.fromOffset(0, 0),
+        BackgroundTransparency = 1,
+        Parent = screenGui
+    })
+
+    local function clampValue(value, low, high)
+        if low > high then low, high = high, low end
+        return math.max(low, math.min(high, value))
+    end
+
     -- Window Frame
     local mainFrame = Creator.New("Frame", {
         Name = "MainFrame",
@@ -1285,6 +1314,39 @@ function PiHub_Lib:CreateWindow(config)
             ThemeTag = { Color = "Border" }
         })
     })
+
+    -- [KEEP ON SCREEN]
+    -- At least a slice of the window stays inside the viewport, which matters most on
+    -- phones where a drag can easily push the header out of reach.
+    local function keepWindowOnScreen()
+        local size = mainFrame.AbsoluteSize
+        if size.X <= 0 or size.Y <= 0 then return end
+        local origin = originProbe.AbsolutePosition
+        local vp = (CurrentCamera and CurrentCamera.ViewportSize) or viewportNow
+        local keepX, keepY = 72, 40
+        local absX, absY = mainFrame.AbsolutePosition.X, mainFrame.AbsolutePosition.Y
+        local clampedX = clampValue(absX, origin.X - (size.X - keepX), origin.X + vp.X - keepX)
+        local clampedY = clampValue(absY, origin.Y, origin.Y + vp.Y - keepY)
+        if clampedX ~= absX or clampedY ~= absY then
+            local anchor = mainFrame.AnchorPoint
+            mainFrame.Position = UDim2.fromOffset(
+                clampedX + anchor.X * size.X - origin.X,
+                clampedY + anchor.Y * size.Y - origin.Y
+            )
+        end
+    end
+
+    -- Rotating a phone or resizing the client re-fits the window instead of leaving a
+    -- slice of it outside the screen.
+    if CurrentCamera then
+        Creator.AddSignal(CurrentCamera:GetPropertyChangedSignal("ViewportSize"), function()
+            mainFrame.Size = fitSizeToViewport()
+            keepWindowOnScreen()
+        end)
+    end
+
+    task.defer(keepWindowOnScreen)
+    task.delay(0.25, keepWindowOnScreen)
 
     -- Dragging Logic (Supports PC Mouse and Mobile Touch)
     local isDragging, dragStart, startPos = false, nil, nil
@@ -1399,6 +1461,7 @@ function PiHub_Lib:CreateWindow(config)
                 startPos.Y.Scale,
                 startPos.Y.Offset + delta.Y
             )
+            keepWindowOnScreen()
         end
     end)
 
@@ -1544,14 +1607,63 @@ function PiHub_Lib:CreateWindow(config)
         end
     end)
 
+    -- [FLOATING BUTTON ANCHOR]
+    -- The floating button sits near the top left corner of the window, level with the
+    -- header, and follows the window while it is dragged or resized. When there is no
+    -- room on the left it moves to the right side, and a narrow screen falls back to
+    -- the space just left of the header buttons, so it never leaves the screen.
+    local function updateFloatingButtonPosition()
+        local size = mobileBtn.AbsoluteSize
+        local windowPos = mainFrame.AbsolutePosition
+        local windowSize = mainFrame.AbsoluteSize
+        if size.X <= 0 or windowSize.X <= 0 then return end
+
+        local origin = originProbe.AbsolutePosition
+        local viewportWidth = (CurrentCamera and CurrentCamera.ViewportSize.X) or 1920
+        local roomOnLeft = windowPos.X - origin.X
+        local roomOnRight = (origin.X + viewportWidth) - (windowPos.X + windowSize.X)
+
+        local targetY = windowPos.Y + 7
+        local targetX
+        if roomOnLeft >= size.X + 12 then
+            targetX = windowPos.X - size.X - 8   -- preferred: beside the top left corner
+        elseif roomOnRight >= size.X + 12 then
+            targetX = windowPos.X + windowSize.X + 8   -- no room on the left: use the right
+        else
+            targetX = windowPos.X + windowSize.X - 112 - size.X   -- narrow screen: inside the header
+        end
+        mobileBtn.Position = UDim2.fromOffset(targetX - origin.X, targetY - origin.Y)
+    end
+
+    Creator.AddSignal(mainFrame:GetPropertyChangedSignal("AbsolutePosition"), updateFloatingButtonPosition)
+    Creator.AddSignal(mainFrame:GetPropertyChangedSignal("AbsoluteSize"), updateFloatingButtonPosition)
+    Creator.AddSignal(originProbe:GetPropertyChangedSignal("AbsolutePosition"), updateFloatingButtonPosition)
+    task.defer(updateFloatingButtonPosition)
+    task.delay(0.25, updateFloatingButtonPosition)
+    WindowObj.UpdateFloatingButtonPosition = updateFloatingButtonPosition
+    WindowObj.KeepOnScreen = keepWindowOnScreen
+    WindowObj.FitToViewport = fitSizeToViewport
+    WindowObj.BaseSize = Vector2.new(baseWidth, baseHeight)
+
     WindowObj.MobileButton = mobileBtn
     WindowObj.MinimizeKey = minKey
 
+    -- Enum lookups throw on unknown names, so binding strings are resolved safely
+    -- across the keyboard enum and the mouse input types.
+    local function resolveBinding(value)
+        if typeof(value) == "EnumItem" then return value end
+        if type(value) ~= "string" or value == "" then return nil end
+        local okKey, key = pcall(function() return Enum.KeyCode[value] end)
+        if okKey and key then return key end
+        local okButton, button = pcall(function() return Enum.UserInputType[value] end)
+        if okButton and button then return button end
+        return nil
+    end
+
     function WindowObj:SetMinimizeKey(newKey)
-        if typeof(newKey) == "EnumItem" then
-            self.MinimizeKey = newKey
-        elseif type(newKey) == "string" and Enum.KeyCode[newKey] then
-            self.MinimizeKey = Enum.KeyCode[newKey]
+        local resolved = resolveBinding(newKey)
+        if resolved then
+            self.MinimizeKey = resolved
         end
     end
 
@@ -1577,9 +1689,15 @@ function PiHub_Lib:CreateWindow(config)
         WindowObj:Toggle()
     end)
 
-    -- 2. PC Keybind Listener
+    -- 2. PC Keybind Listener (keyboard keys and mouse buttons)
     Creator.AddSignal(UserInputService.InputBegan, function(input, processed)
-        if not processed and (input.KeyCode == WindowObj.MinimizeKey) then
+        if processed then return end
+        local boundKey = WindowObj.MinimizeKey
+        if typeof(boundKey) == "EnumItem" and boundKey.EnumType == Enum.UserInputType then
+            if input.UserInputType == boundKey then
+                WindowObj:Toggle()
+            end
+        elseif input.KeyCode == boundKey then
             WindowObj:Toggle()
         end
     end)
@@ -1612,9 +1730,14 @@ function PiHub_Lib:CreateWindow(config)
         dialogOverlay.Visible = true
         Creator.AdaptiveTween(dialogOverlay, { BackgroundTransparency = 0.5 }, 0.2)
 
+        -- The dialog shrinks on small screens instead of hanging off the edges.
+        local dialogViewport = (CurrentCamera and CurrentCamera.ViewportSize) or Vector2.new(1366, 768)
+        local dialogWidth = math.max(220, math.min(320, dialogViewport.X - 40))
+        local dialogHeight = math.max(130, math.min(150, dialogViewport.Y - 80))
+
         local dialogBox = Creator.New("Frame", {
             Name = "DialogBox",
-            Size = UDim2.fromOffset(320, 150),
+            Size = UDim2.fromOffset(dialogWidth, dialogHeight),
             Position = UDim2.fromScale(0.5, 0.5),
             AnchorPoint = Vector2.new(0.5, 0.5),
             BorderSizePixel = 0,
@@ -1897,6 +2020,7 @@ function PiHub_Lib:CreateWindow(config)
 
             local btnCard = Creator.New("TextButton", {
                 Size = UDim2.new(1, 0, 0, bDesc ~= "" and 42 or 34),
+                AutomaticSize = bDesc ~= "" and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
                 BorderSizePixel = 0,
                 Text = "",
                 Parent = tabPage,
@@ -1904,12 +2028,14 @@ function PiHub_Lib:CreateWindow(config)
             }, {
                 Creator.New("UICorner", { CornerRadius = UDim.new(0, 6) }),
                 Creator.New("UIStroke", { Thickness = 1, Transparency = 0.6, ThemeTag = { Color = "Border" } }),
+                Creator.New("UIPadding", { PaddingBottom = UDim.new(0, bDesc ~= "" and 6 or 0) }),
                 Creator.New("TextLabel", {
                     Name = "Title",
                     Text = bTitle,
                     Font = Enum.Font.GothamMedium,
                     TextSize = 12,
                     TextXAlignment = Enum.TextXAlignment.Left,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
                     Position = UDim2.new(0, 10, 0, bDesc ~= "" and 4 or 0),
                     Size = UDim2.new(1, -40, bDesc ~= "" and 0 or 1, bDesc ~= "" and 16 or 0),
                     BackgroundTransparency = 1,
@@ -1929,6 +2055,8 @@ function PiHub_Lib:CreateWindow(config)
                     Text = bDesc,
                     Font = Enum.Font.Gotham,
                     TextSize = 10,
+                    TextWrapped = true,
+                    AutomaticSize = Enum.AutomaticSize.Y,
                     TextXAlignment = Enum.TextXAlignment.Left,
                     Position = UDim2.new(0, 10, 0, 22),
                     Size = UDim2.new(1, -40, 0, 14),
@@ -1969,6 +2097,7 @@ function PiHub_Lib:CreateWindow(config)
 
             local toggleCard = Creator.New("TextButton", {
                 Size = UDim2.new(1, 0, 0, tDesc ~= "" and 42 or 34),
+                AutomaticSize = tDesc ~= "" and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
                 BorderSizePixel = 0,
                 Text = "",
                 Parent = tabPage,
@@ -1976,11 +2105,13 @@ function PiHub_Lib:CreateWindow(config)
             }, {
                 Creator.New("UICorner", { CornerRadius = UDim.new(0, 6) }),
                 Creator.New("UIStroke", { Thickness = 1, Transparency = 0.6, ThemeTag = { Color = "Border" } }),
+                Creator.New("UIPadding", { PaddingBottom = UDim.new(0, tDesc ~= "" and 6 or 0) }),
                 Creator.New("TextLabel", {
                     Text = tTitle,
                     Font = Enum.Font.GothamMedium,
                     TextSize = 12,
                     TextXAlignment = Enum.TextXAlignment.Left,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
                     Position = UDim2.new(0, 10, 0, tDesc ~= "" and 4 or 0),
                     Size = UDim2.new(1, -60, tDesc ~= "" and 0 or 1, tDesc ~= "" and 16 or 0),
                     BackgroundTransparency = 1,
@@ -1993,6 +2124,8 @@ function PiHub_Lib:CreateWindow(config)
                     Text = tDesc,
                     Font = Enum.Font.Gotham,
                     TextSize = 10,
+                    TextWrapped = true,
+                    AutomaticSize = Enum.AutomaticSize.Y,
                     TextXAlignment = Enum.TextXAlignment.Left,
                     Position = UDim2.new(0, 10, 0, 22),
                     Size = UDim2.new(1, -60, 0, 14),
@@ -2079,6 +2212,7 @@ function PiHub_Lib:CreateWindow(config)
                     Font = Enum.Font.GothamMedium,
                     TextSize = 12,
                     TextXAlignment = Enum.TextXAlignment.Left,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
                     Position = UDim2.new(0, 10, 0, 6),
                     Size = UDim2.new(1, -80, 0, 16),
                     BackgroundTransparency = 1,
@@ -2214,6 +2348,7 @@ function PiHub_Lib:CreateWindow(config)
                     Font = Enum.Font.GothamMedium,
                     TextSize = 12,
                     TextXAlignment = Enum.TextXAlignment.Left,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
                     Position = UDim2.new(0, 10, 0, 4),
                     Size = UDim2.new(1, -40, 0, 16),
                     BackgroundTransparency = 1,
@@ -2226,6 +2361,7 @@ function PiHub_Lib:CreateWindow(config)
                 Font = Enum.Font.Gotham,
                 TextSize = 10,
                 TextXAlignment = Enum.TextXAlignment.Left,
+                TextTruncate = Enum.TextTruncate.AtEnd,
                 Position = UDim2.new(0, 10, 0, 22),
                 Size = UDim2.new(1, -40, 0, 14),
                 BackgroundTransparency = 1,
@@ -2426,6 +2562,7 @@ function PiHub_Lib:CreateWindow(config)
                     Font = Enum.Font.GothamMedium,
                     TextSize = 12,
                     TextXAlignment = Enum.TextXAlignment.Left,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
                     Position = UDim2.new(0, 10, 0, 0),
                     Size = UDim2.new(0.5, 0, 1, 0),
                     BackgroundTransparency = 1,
@@ -2493,30 +2630,47 @@ function PiHub_Lib:CreateWindow(config)
 
             local kTitle = config.Title or config.Name or "Keybind"
             local kDesc = config.Description or config.Desc or ""
-            local defaultKey = config.Default or Enum.KeyCode.E
-            if type(defaultKey) == "string" then
-                defaultKey = Enum.KeyCode[defaultKey] or Enum.KeyCode.E
-            end
+            local defaultKey = resolveBinding(config.Default) or Enum.KeyCode.E
             local flagName = config.Flag or id
             local callback = config.Callback or function() end
             local changedCallback = config.ChangedCallback or function() end
+
+            -- Mouse buttons are bindable too, so a bound value is either a keyboard
+            -- KeyCode or one of these UserInputTypes.
+            local MOUSE_BINDINGS = {
+                [Enum.UserInputType.MouseButton1] = "Mouse1",
+                [Enum.UserInputType.MouseButton2] = "Mouse2",
+                [Enum.UserInputType.MouseButton3] = "Mouse3"
+            }
+
+            local function isMouseBinding(value)
+                return MOUSE_BINDINGS[value] ~= nil
+            end
+
+            local function bindingLabel(value)
+                if value == nil then return "None" end
+                return MOUSE_BINDINGS[value] or tostring(value.Name)
+            end
 
             local currentKey = defaultKey
             PiHub_Lib.Flags[flagName] = currentKey
 
             local keybindCard = Creator.New("Frame", {
                 Size = UDim2.new(1, 0, 0, kDesc ~= "" and 42 or 34),
+                AutomaticSize = kDesc ~= "" and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
                 BorderSizePixel = 0,
                 Parent = tabPage,
                 ThemeTag = { BackgroundColor3 = "Card" }
             }, {
                 Creator.New("UICorner", { CornerRadius = UDim.new(0, 6) }),
                 Creator.New("UIStroke", { Thickness = 1, Transparency = 0.6, ThemeTag = { Color = "Border" } }),
+                Creator.New("UIPadding", { PaddingBottom = UDim.new(0, kDesc ~= "" and 6 or 0) }),
                 Creator.New("TextLabel", {
                     Text = kTitle,
                     Font = Enum.Font.GothamMedium,
                     TextSize = 12,
                     TextXAlignment = Enum.TextXAlignment.Left,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
                     Position = UDim2.new(0, 10, 0, kDesc ~= "" and 4 or 0),
                     Size = UDim2.new(1, -110, kDesc ~= "" and 0 or 1, kDesc ~= "" and 16 or 0),
                     BackgroundTransparency = 1,
@@ -2529,6 +2683,8 @@ function PiHub_Lib:CreateWindow(config)
                     Text = kDesc,
                     Font = Enum.Font.Gotham,
                     TextSize = 10,
+                    TextWrapped = true,
+                    AutomaticSize = Enum.AutomaticSize.Y,
                     TextXAlignment = Enum.TextXAlignment.Left,
                     Position = UDim2.new(0, 10, 0, 22),
                     Size = UDim2.new(1, -110, 0, 14),
@@ -2542,7 +2698,7 @@ function PiHub_Lib:CreateWindow(config)
                 Size = UDim2.new(0, 96, 0, 24),
                 Position = UDim2.new(1, -106, 0.5, -12),
                 BorderSizePixel = 0,
-                Text = "[ " .. tostring(currentKey.Name) .. " ]",
+                Text = "[ " .. bindingLabel(currentKey) .. " ]",
                 Font = Enum.Font.GothamBold,
                 TextSize = 11,
                 Parent = keybindCard,
@@ -2563,18 +2719,16 @@ function PiHub_Lib:CreateWindow(config)
                 currentKey = newKey
                 KeybindObj.Value = newKey
                 PiHub_Lib.Flags[flagName] = newKey
-                bindButton.Text = "[ " .. tostring(newKey.Name) .. " ]"
+                bindButton.Text = "[ " .. bindingLabel(newKey) .. " ]"
                 bindButton.TextColor3 = Creator.GetThemeProperty("Accent")
                 pcall(changedCallback, newKey)
                 pcall(callback, newKey)
             end
 
             function KeybindObj:SetValue(newKey)
-                if type(newKey) == "string" and Enum.KeyCode[newKey] then
-                    newKey = Enum.KeyCode[newKey]
-                end
-                if typeof(newKey) == "EnumItem" then
-                    setKey(newKey)
+                local resolved = resolveBinding(newKey)
+                if resolved then
+                    setKey(resolved)
                 end
             end
 
@@ -2592,12 +2746,22 @@ function PiHub_Lib:CreateWindow(config)
                             isListening = false
                             setKey(input.KeyCode)
                         end
+                    elseif isMouseBinding(input.UserInputType) then
+                        -- Left, right and middle click bind like any keyboard key.
+                        conn:Disconnect()
+                        isListening = false
+                        setKey(input.UserInputType)
                     end
                 end)
             end)
 
             Creator.AddSignal(UserInputService.InputBegan, function(input, processed)
-                if not processed and not isListening and input.KeyCode == currentKey then
+                if processed or isListening then return end
+                if isMouseBinding(currentKey) then
+                    if input.UserInputType == currentKey then
+                        pcall(callback, currentKey)
+                    end
+                elseif input.KeyCode == currentKey then
                     pcall(callback, currentKey)
                 end
             end)
